@@ -36,6 +36,10 @@ internal sealed class TrayContext : ApplicationContext
     private readonly KeyboardHook _hook;
 
     private readonly EngineHost _engines;
+    private readonly System.Windows.Forms.Timer _hookWatchdog;
+
+    /// <summary>Fenêtre où l'utilisateur parlait, à retrouver avant d'insérer.</summary>
+    private TargetWindow? _target;
 
     public TrayContext(AppSettings settings, string modelPath)
     {
@@ -64,8 +68,31 @@ internal sealed class TrayContext : ApplicationContext
         _coordinator.StateChanged += (_, state) => ApplyState(state);
         ApplyState(_coordinator.State);
 
+        // Le minuteur Windows Forms tourne sur le fil d'interface, celui-là
+        // même qui détient le hook : la réinstallation se fait donc là où
+        // Windows l'exige.
+        _hookWatchdog = new System.Windows.Forms.Timer { Interval = (int)WatchdogInterval.TotalMilliseconds };
+        _hookWatchdog.Tick += (_, _) => WatchHook();
+
         _hook.Install();
+        _hookWatchdog.Start();
+
         _ = LoadEngineAsync();
+    }
+
+    /// <summary>
+    /// Un clavier muet plus longtemps que ce délai déclenche une
+    /// réinstallation du hook. Assez long pour que ce soit rare, assez court
+    /// pour qu'une panne ne dure pas toute la journée.
+    /// </summary>
+    private static readonly TimeSpan WatchdogInterval = TimeSpan.FromMinutes(2);
+
+    private void WatchHook()
+    {
+        if (_hook.RefreshIfSilent(WatchdogInterval))
+        {
+            _log.Write("hook clavier réinstallé après un silence prolongé");
+        }
     }
 
     // --- Cycle de vie du moteur -------------------------------------------------
@@ -127,6 +154,12 @@ internal sealed class TrayContext : ApplicationContext
             return;
         }
 
+        // La fenêtre est mémorisée MAINTENANT, tant qu'elle est encore celle
+        // où l'utilisateur parlait. Après un rechargement du modèle, deux
+        // secondes peuvent s'écouler avant l'insertion — largement le temps
+        // de basculer ailleurs, et d'y déverser un texte non désiré.
+        _target = TargetWindow.Capture();
+
         RecordedAudio? recorded = _recorder.Stop();
 
         if (recorded is not { } audio)
@@ -167,6 +200,12 @@ internal sealed class TrayContext : ApplicationContext
 
             if (result.Text.Length > 0)
             {
+                // Ramène la fenêtre où l'utilisateur parlait, si elle n'est
+                // plus au premier plan. Sans effet si elle a disparu, ou si
+                // Windows refuse le changement : on insère quand même, dans
+                // la fenêtre courante, plutôt que de perdre la dictée.
+                _target?.Restore();
+
                 // De retour sur le fil d'interface grâce à ConfigureAwait(true) :
                 // le presse-papiers exige un fil STA initialisé pour OLE.
                 TextInjector.Insert(result.Text, _settings.Insertion);
@@ -263,6 +302,7 @@ internal sealed class TrayContext : ApplicationContext
     {
         if (disposing)
         {
+            _hookWatchdog.Dispose();
             _hook.Dispose();
             _recorder.Dispose();
             _engines.Dispose();

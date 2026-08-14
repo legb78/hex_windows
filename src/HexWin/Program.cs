@@ -160,13 +160,31 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine($"Placez le curseur dans la fenêtre visée. Insertion dans {delay} s...");
 
+        TargetWindow? target = null;
+
         for (int remaining = delay; remaining > 0; remaining--)
         {
             Console.Write($" {remaining}");
             Thread.Sleep(TimeSpan.FromSeconds(1));
+
+            // La fenêtre est mémorisée après la première seconde, le temps
+            // que le curseur soit placé. Reproduit ce que fait l'application :
+            // capturer la cible tôt, et y revenir juste avant d'insérer, pour
+            // qu'un changement de fenêtre entre-temps ne détourne pas le texte.
+            if (target is null && (target = TargetWindow.Capture()) is not null)
+            {
+                Console.WriteLine();
+                Console.WriteLine($"Cible memorisee : {target.Title}");
+            }
         }
 
         Console.WriteLine();
+
+        if (target?.Restore() == false)
+        {
+            Console.WriteLine("(fenêtre d'origine introuvable, insertion dans la fenêtre courante)");
+        }
+
         TextInjector.Insert(text, mode);
 
         // Laisse au collage le temps d'aboutir et au presse-papiers celui

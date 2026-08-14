@@ -78,7 +78,24 @@ L'architecture sépare délibérément deux couches, pour une raison de testabil
 
 ### Contribution
 
-`main` reste toujours verte. Une branche par changement (`feat/`, `fix/`,
-`chore/`, `ci/`, `docs/`), messages en
+Deux branches au long cours :
+
+| Branche | Rôle |
+|---------|------|
+| `main` | Versions publiées. N'avance que depuis `develop`, au moment d'une release. |
+| `develop` | Intégration. C'est là que les branches de travail sont fusionnées. |
+
+Une branche par changement, créée **depuis `develop`** et fusionnée vers
+`develop` : `feat/`, `fix/`, `chore/`, `ci/`, `docs/`. Messages en
 [Conventional Commits](https://www.conventionalcommits.org/fr/), fusion en
 *squash*.
+
+```powershell
+git checkout develop
+git pull
+git checkout -b feat/mon-sujet
+# ... travail, commits ...
+gh pr create --base develop
+```
+
+La CI tourne sur les PR vers `main` comme vers `develop`.

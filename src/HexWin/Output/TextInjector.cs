@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using HexWin.Configuration;
 using HexWin.Input;
@@ -15,6 +16,7 @@ namespace HexWin.Output;
 /// Coquille Win32 : la construction des frappes appartient à
 /// <see cref="UnicodeKeystrokes"/>, qui se teste.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Coquille Win32 : SendInput écrit dans la fenêtre active du bureau réel.")]
 internal sealed partial class TextInjector
 {
     private const uint InputKeyboard = 1;

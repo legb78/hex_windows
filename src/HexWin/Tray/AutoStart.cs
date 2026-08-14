@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Win32;
 
 namespace HexWin.Tray;
@@ -10,6 +11,7 @@ namespace HexWin.Tray;
 /// plutôt qu'une tâche planifiée : elle ne demande aucun droit
 /// administrateur, et se retire aussi facilement qu'elle se pose.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Coquille Win32 : écrit dans le registre de l'utilisateur courant.")]
 internal static class AutoStart
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";

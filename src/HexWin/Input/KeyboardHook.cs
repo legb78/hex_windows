@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
@@ -19,6 +20,7 @@ namespace HexWin.Input;
 /// Les abonnés doivent donc rendre la main immédiatement et confier le
 /// travail à un fil de fond.</para>
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Coquille Win32 : un hook clavier global ne peut pas être déclenché par un test : Windows marque comme injectées les frappes produites par un programme.")]
 internal sealed partial class KeyboardHook : IDisposable
 {
     private const int WhKeyboardLowLevel = 13;

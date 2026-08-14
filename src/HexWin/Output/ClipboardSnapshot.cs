@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
 namespace HexWin.Output;
@@ -17,6 +18,7 @@ namespace HexWin.Output;
 /// qui recouvre l'essentiel des usages. Un format exotique n'est pas
 /// sauvegardé : mieux vaut ne rien restaurer que d'écrire n'importe quoi.</para>
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Coquille Win32 : le presse-papiers est une ressource globale du bureau.")]
 internal sealed class ClipboardSnapshot
 {
     private readonly string? _text;

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using NAudio.Wave;
 
 namespace HexWin.Audio;
@@ -16,6 +17,7 @@ public readonly record struct RecordedAudio(byte[] Wav, TimeSpan Duration);
 /// courte, plafond atteint — appartiennent à <see cref="RecordingGuards"/>,
 /// qui se teste sans micro.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Coquille NAudio : exige un microphone physique.")]
 public sealed class AudioRecorder : IDisposable
 {
     private readonly RecordingGuards _guards;

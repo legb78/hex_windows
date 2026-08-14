@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using HexWin.Audio;
 using HexWin.Configuration;
 using Whisper.net;
 using Whisper.net.LibraryLoader;
@@ -108,7 +109,7 @@ public sealed class WhisperEngine : IDisposable
     /// </summary>
     public async Task WarmUpAsync(CancellationToken cancellationToken = default)
     {
-        using var silence = new MemoryStream(BuildSilentWav(TimeSpan.FromMilliseconds(200)));
+        using var silence = new MemoryStream(WavFile.CreateSilence(TimeSpan.FromMilliseconds(200)));
 
         try
         {
@@ -118,40 +119,6 @@ public sealed class WhisperEngine : IDisposable
         {
             // Fermeture pendant le préchauffage : sans conséquence.
         }
-    }
-
-    /// <summary>
-    /// Construit en mémoire un WAV 16 kHz mono 16 bits entièrement silencieux.
-    /// </summary>
-    private static byte[] BuildSilentWav(TimeSpan duration)
-    {
-        const int sampleRate = 16_000;
-        const short channels = 1;
-        const short bitsPerSample = 16;
-
-        int sampleCount = (int)(sampleRate * duration.TotalSeconds);
-        int dataBytes = sampleCount * channels * (bitsPerSample / 8);
-
-        using var buffer = new MemoryStream(44 + dataBytes);
-        using var writer = new BinaryWriter(buffer);
-
-        writer.Write("RIFF"u8);
-        writer.Write(36 + dataBytes);
-        writer.Write("WAVE"u8);
-        writer.Write("fmt "u8);
-        writer.Write(16);                                       // taille du bloc fmt
-        writer.Write((short)1);                                 // PCM non compressé
-        writer.Write(channels);
-        writer.Write(sampleRate);
-        writer.Write(sampleRate * channels * (bitsPerSample / 8));
-        writer.Write((short)(channels * (bitsPerSample / 8)));
-        writer.Write(bitsPerSample);
-        writer.Write("data"u8);
-        writer.Write(dataBytes);
-        writer.Write(new byte[dataBytes]);                      // le silence lui-même
-
-        writer.Flush();
-        return buffer.ToArray();
     }
 
     /// <summary>

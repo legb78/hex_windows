@@ -1,3 +1,4 @@
+using HexWin.Audio;
 using HexWin.Configuration;
 using HexWin.Interop;
 using HexWin.Transcription;
@@ -28,9 +29,80 @@ internal static class Program
             return TranscribeFile(wavPath, ReadOption(args, "--model"), ReadOption(args, "--runtime"));
         }
 
+        string? recordTarget = ReadOption(args, "--record");
+
+        if (recordTarget is not null)
+        {
+            ConsoleBridge.Attach();
+            return RecordToFile(recordTarget, ReadOption(args, "--seconds"));
+        }
+
         // Le mode normal (barre système, raccourci global) arrive dans une
         // PR ultérieure.
         return 0;
+    }
+
+    /// <summary>
+    /// Mode de diagnostic du micro : enregistre quelques secondes, écrit le
+    /// WAV et mesure l'amplitude obtenue.
+    ///
+    /// La mesure est le point important. Un micro coupé, débranché ou interdit
+    /// par les réglages de confidentialité produit un fichier parfaitement
+    /// valide, de la bonne durée, et totalement silencieux — que Whisper
+    /// transcrit ensuite en une phrase inventée. Sans niveau affiché, on
+    /// chercherait la panne du côté de la transcription.
+    /// </summary>
+    private static int RecordToFile(string outputPath, string? secondsOption)
+    {
+        if (!int.TryParse(secondsOption, out int seconds) || seconds <= 0)
+        {
+            seconds = 5;
+        }
+
+        AppSettings settings = AppSettings.Load(
+            Path.Combine(AppContext.BaseDirectory, AppSettings.FileName));
+
+        try
+        {
+            using var recorder = new AudioRecorder(RecordingGuards.From(settings));
+
+            Console.WriteLine($"Enregistrement pendant {seconds} s — parlez maintenant.");
+            recorder.Start();
+            Thread.Sleep(TimeSpan.FromSeconds(seconds));
+
+            RecordedAudio? recorded = recorder.Stop();
+
+            if (recorded is not { } audio)
+            {
+                Console.Error.WriteLine("Enregistrement trop court, rien n'a été retenu.");
+                return 1;
+            }
+
+            File.WriteAllBytes(outputPath, audio.Wav);
+
+            ReadOnlySpan<byte> pcm = audio.Wav.AsSpan(WavFile.HeaderSize);
+            double peak = AudioLevel.Peak(pcm);
+
+            Console.WriteLine($"Écrit     : {outputPath}");
+            Console.WriteLine($"Durée     : {audio.Duration.TotalSeconds:F2} s");
+            Console.WriteLine($"Niveau    : {peak:P1}");
+
+            if (AudioLevel.IsSilent(pcm))
+            {
+                Console.WriteLine();
+                Console.Error.WriteLine("Le signal est silencieux. Vérifiez que le bon micro est");
+                Console.Error.WriteLine("sélectionné par défaut, et que Paramètres > Confidentialité");
+                Console.Error.WriteLine("> Microphone autorise les applications de bureau.");
+                return 4;
+            }
+
+            return 0;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException)
+        {
+            Console.Error.WriteLine($"Échec de l'enregistrement : {ex.Message}");
+            return 3;
+        }
     }
 
     /// <summary>
@@ -135,6 +207,9 @@ internal static class Program
         Console.WriteLine("      --model    remplace le modèle de settings.json");
         Console.WriteLine("      --runtime  remplace l'ordre des moteurs, séparés par des virgules");
         Console.WriteLine("                 exemple : --runtime Cpu   pour comparer avec Vulkan");
+        Console.WriteLine();
+        Console.WriteLine("  HexWin.exe --record sortie.wav [--seconds 5]");
+        Console.WriteLine("      enregistre le micro, écrit le WAV et mesure le niveau capté");
         Console.WriteLine();
         Console.WriteLine("  HexWin.exe --help");
     }

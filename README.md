@@ -74,7 +74,7 @@ que d'empêcher le démarrage.
 |---------|------|
 | `hotkey` | Touches à maintenir. La touche `Fn` n'est pas utilisable : elle est gérée par le contrôleur du clavier et n'émet aucun code visible par Windows. |
 | `insertion` | `Paste` (presse-papiers, instantané) ou `Type` (frappe simulée, pour les applications qui ignorent le collage). |
-| `provider` | `cpu`, `directml` ou `cuda`. |
+| `provider` | `cpu`. Seul disponible : les bibliothèques natives publiées ne sont compilées que pour le processeur. |
 | `threads` | Fils alloués au décodage. |
 | `minRecordingMilliseconds` | En deçà, l'appui est considéré comme accidentel. |
 | `maxRecordingSeconds` | Coupe l'enregistrement si la touche reste enfoncée. |

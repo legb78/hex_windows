@@ -26,9 +26,15 @@
   // Coupe l'enregistrement si la touche reste enfoncée.
   "maxRecordingSeconds": 120,
 
-  // Fournisseur de calcul : "cpu", "directml" (GPU sous Windows) ou "cuda".
-  // Un fournisseur inconnu ou indisponible revient à "cpu", qui reste
-  // toujours capable de transcrire.
+  // Fournisseur de calcul. "cpu" est aujourd'hui le seul possible, et ce
+  // n'est pas un choix : les bibliothèques natives de sherpa-onnx publiées
+  // sur NuGet ne sont compilées que pour le processeur.
+  //
+  // "directml" et "cuda" ont été retirés après essai : ils étaient acceptés,
+  // puis retombaient silencieusement sur le processeur. Le réglage promettait
+  // une accélération inatteignable. Exploiter un GPU demanderait de
+  // recompiler sherpa-onnx — pour un gain incertain, le processeur
+  // transcrivant déjà une phrase de cinq secondes en 0,17 s.
   "provider": "cpu",
 
   // Fils d'exécution alloués au décodage. Au-delà d'une poignée, le gain

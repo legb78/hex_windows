@@ -1,9 +1,11 @@
 using HexWin.Audio;
 using HexWin.Configuration;
+using HexWin.Diagnostics;
 using HexWin.Input;
 using HexWin.Interop;
 using HexWin.Output;
 using HexWin.Transcription;
+using HexWin.Tray;
 
 namespace HexWin;
 
@@ -53,9 +55,84 @@ internal static class Program
             return InjectText(textToInject, ReadOption(args, "--mode"), ReadOption(args, "--delay"));
         }
 
-        // Le mode normal (barre système, raccourci global) arrive dans une
-        // PR ultérieure.
-        return 0;
+        return RunTrayApplication();
+    }
+
+    /// <summary>
+    /// Mode normal : l'application vit dans la barre système et n'a aucune
+    /// fenêtre.
+    /// </summary>
+    private static int RunTrayApplication()
+    {
+        // Deux instances installeraient deux hooks clavier sur le même
+        // raccourci, et chaque dictée serait insérée en double.
+        using var singleInstance = new Mutex(initiallyOwned: true, @"Local\HexWin", out bool isFirst);
+
+        if (!isFirst)
+        {
+            return 0;
+        }
+
+        string baseDirectory = AppContext.BaseDirectory;
+        AppSettings settings = AppSettings.Load(Path.Combine(baseDirectory, AppSettings.FileName));
+
+        string? modelPath = ModelLocator.Resolve(settings.ModelPath, baseDirectory);
+
+        if (modelPath is null)
+        {
+            MessageBox.Show(
+                $"Modèle introuvable : {settings.ModelPath}\n\n"
+                + "Lancez scripts/get-model.ps1 pour le télécharger.",
+                "HexWin",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+
+            return 2;
+        }
+
+        ApplicationConfiguration.Initialize();
+
+        // Le contexte de synchronisation Windows Forms n'est installé qu'au
+        // démarrage de la boucle de messages, donc trop tard pour le
+        // constructeur de TrayContext — qui en a besoin pour ramener la
+        // transcription sur le fil d'interface. On l'installe donc à la main.
+        SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
+
+        try
+        {
+            using var context = new TrayContext(settings, modelPath);
+            Application.Run(context);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            // Une application sans fenêtre qui disparaît en silence est
+            // indiagnosticable. La trace écrite ici est parfois le seul
+            // indice exploitable.
+            ReportFatal(ex);
+            return 1;
+        }
+    }
+
+    private static void ReportFatal(Exception error)
+    {
+        string path = Path.Combine(SessionLog.Directory, "crash.log");
+
+        try
+        {
+            Directory.CreateDirectory(SessionLog.Directory);
+            File.AppendAllText(path, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}{Environment.NewLine}{error}{Environment.NewLine}{Environment.NewLine}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            path = "(journal inaccessible)";
+        }
+
+        MessageBox.Show(
+            $"HexWin s'est arrêté sur une erreur :\n\n{error.Message}\n\nDétails dans {path}",
+            "HexWin",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error);
     }
 
     /// <summary>

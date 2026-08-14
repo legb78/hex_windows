@@ -1,0 +1,60 @@
+name: CI
+
+# Le dépôt est privé et les runners Windows sont facturés 2x les minutes
+# Actions. Chaque réglage ci-dessous existe pour limiter la consommation :
+#   - paths-ignore  : pas de build pour une modification de documentation
+#   - concurrency   : un nouveau push annule le run précédent de la même PR
+#   - timeout       : plafonne un run qui partirait en boucle
+#   - cache NuGet   : évite de retélécharger les paquets à chaque run
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build et tests unitaires
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Récupération du code
+        uses: actions/checkout@v4
+
+      - name: Installation du SDK .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Cache des paquets NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restauration
+        run: dotnet restore
+
+      - name: Compilation
+        run: dotnet build -c Release --no-restore
+
+      # Les tests d'intégration (marqués Category=Integration) sont exclus :
+      # ils exigent un modèle Whisper de plusieurs dizaines de Mo et se lancent
+      # localement via  dotnet test --filter Category=Integration
+      - name: Tests unitaires
+        run: dotnet test -c Release --no-build --filter "Category!=Integration"

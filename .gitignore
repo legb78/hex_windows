@@ -1,55 +1,35 @@
-# Prerequisites
-*.d
+## Résultats de compilation
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+publish/
 
-# Object files
-*.o
-*.ko
-*.obj
-*.elf
+## Fichiers utilisateur Visual Studio / Rider
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.idea/
 
-# Linker output
-*.ilk
-*.map
-*.exp
+## Tests
+TestResults/
+*.trx
+*.coverage
+coverage*.json
 
-# Precompiled Headers
-*.gch
-*.pch
+## NuGet
+*.nupkg
+packages/
 
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
+## Modèles Whisper — bien au-delà de la limite de 100 Mo de GitHub.
+## Ils se téléchargent avec scripts/get-model.ps1
+models/*
+!models/.gitkeep
+*.bin
 
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
-
-# Debug files
-*.dSYM/
-*.su
-*.idb
-*.pdb
-
-# Kernel Module Compile Results
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
-
-# debug information files
-*.dwo
+## Divers
+*.log

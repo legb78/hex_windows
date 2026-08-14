@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- WinExe : pas de fenêtre console au lancement. L'application vit dans
+         la barre système. Le mode CLI de transcription se rattache à la
+         console parente quand il y en a une (voir Program.cs). -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+
+    <AssemblyName>HexWin</AssemblyName>
+    <RootNamespace>HexWin</RootNamespace>
+
+    <ApplicationIcon></ApplicationIcon>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+</Project>

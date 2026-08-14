@@ -2,6 +2,7 @@ using HexWin.Audio;
 using HexWin.Configuration;
 using HexWin.Input;
 using HexWin.Interop;
+using HexWin.Output;
 using HexWin.Transcription;
 
 namespace HexWin;
@@ -44,8 +45,56 @@ internal static class Program
             return WatchHotkey();
         }
 
+        string? textToInject = ReadOption(args, "--inject");
+
+        if (textToInject is not null)
+        {
+            ConsoleBridge.Attach();
+            return InjectText(textToInject, ReadOption(args, "--mode"), ReadOption(args, "--delay"));
+        }
+
         // Le mode normal (barre système, raccourci global) arrive dans une
         // PR ultérieure.
+        return 0;
+    }
+
+    /// <summary>
+    /// Mode de diagnostic de l'insertion : attend quelques secondes, le temps
+    /// de placer le curseur dans l'application visée, puis y insère un texte.
+    ///
+    /// Le délai est indispensable : sans lui, le texte partirait dans la
+    /// console qui a lancé la commande, ce qui ne prouverait rien.
+    /// </summary>
+    private static int InjectText(string text, string? modeOption, string? delayOption)
+    {
+        InsertionMode mode = string.Equals(modeOption, "Type", StringComparison.OrdinalIgnoreCase)
+            ? InsertionMode.Type
+            : InsertionMode.Paste;
+
+        if (!int.TryParse(delayOption, out int delay) || delay <= 0)
+        {
+            delay = 4;
+        }
+
+        Console.WriteLine($"Mode   : {mode}");
+        Console.WriteLine($"Texte  : {text}");
+        Console.WriteLine();
+        Console.WriteLine($"Placez le curseur dans la fenêtre visée. Insertion dans {delay} s...");
+
+        for (int remaining = delay; remaining > 0; remaining--)
+        {
+            Console.Write($" {remaining}");
+            Thread.Sleep(TimeSpan.FromSeconds(1));
+        }
+
+        Console.WriteLine();
+        TextInjector.Insert(text, mode);
+
+        // Laisse au collage le temps d'aboutir et au presse-papiers celui
+        // d'être restauré avant que le processus ne se termine.
+        Thread.Sleep(TimeSpan.FromSeconds(1));
+
+        Console.WriteLine("Insertion demandée.");
         return 0;
     }
 
@@ -260,6 +309,9 @@ internal static class Program
         Console.WriteLine("      --model    remplace le modèle de settings.json");
         Console.WriteLine("      --provider remplace le fournisseur de calcul : cpu, directml, cuda");
         Console.WriteLine("");
+        Console.WriteLine();
+        Console.WriteLine("  HexWin.exe --inject \"du texte\" [--mode Paste|Type] [--delay 4]");
+        Console.WriteLine("      insère un texte dans la fenêtre active après un délai");
         Console.WriteLine();
         Console.WriteLine("  HexWin.exe --watch-hotkey");
         Console.WriteLine("      affiche les déclenchements du raccourci, sans transcrire");

@@ -148,6 +148,37 @@ public class TranscriptCleanerTests
         Assert.Equal("Bonjour.", TranscriptCleaner.Clean("♪ Bonjour. ♪"));
     }
 
+    // --- Typographie française -------------------------------------------------
+
+    [Theory]
+    [InlineData("Tu viens vendredi?", "Tu viens vendredi ?")]
+    [InlineData("Quelle horreur!", "Quelle horreur !")]
+    [InlineData("Voici la liste:", "Voici la liste :")]
+    [InlineData("Il part; elle reste.", "Il part ; elle reste.")]
+    public void L_espace_avant_les_signes_doubles_est_retablie(string raw, string expected)
+    {
+        // Parakeet écrit « vendredi? » à l'anglaise. L'usage français met une
+        // espace devant les signes doubles.
+        Assert.Equal(expected, TranscriptCleaner.Clean(raw));
+    }
+
+    [Theory]
+    [InlineData("Rendez-vous à 14:30.")]
+    [InlineData("Va sur https://exemple.fr aujourd'hui.")]
+    [InlineData("Le ratio est de 3:1 environ.")]
+    public void Les_deux_points_colles_a_un_chiffre_ou_une_url_ne_sont_pas_touches(string dictated)
+    {
+        // Le signe ne doit être espacé que s'il termine un mot. Sans cette
+        // condition, une heure ou une adresse se retrouverait coupée en deux.
+        Assert.Equal(dictated, TranscriptCleaner.Clean(dictated));
+    }
+
+    [Fact]
+    public void Une_espace_deja_presente_n_est_pas_doublee()
+    {
+        Assert.Equal("Tu viens vendredi ?", TranscriptCleaner.Clean("Tu viens vendredi ?"));
+    }
+
     [Fact]
     public void Un_texte_sans_lettre_ni_chiffre_ne_produit_rien()
     {

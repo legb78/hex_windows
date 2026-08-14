@@ -1,7 +1,7 @@
 namespace HexWin.Audio;
 
 /// <summary>
-/// Format de capture, imposé par whisper.cpp : 16 kHz, mono, 16 bits signés.
+/// Format de capture, imposé par le modèle : 16 kHz, mono, 16 bits signés.
 ///
 /// Enregistrer directement dans ce format évite tout rééchantillonnage entre
 /// le micro et le moteur. Un rééchantillonnage coûterait du temps sur le

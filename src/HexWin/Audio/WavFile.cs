@@ -3,12 +3,12 @@ namespace HexWin.Audio;
 /// <summary>
 /// Écrit l'en-tête WAV qui précède les échantillons bruts.
 ///
-/// whisper.cpp attend un fichier WAV complet, pas du PCM nu. On construit
-/// l'en-tête à la main plutôt que de passer par un écrivain de bibliothèque :
-/// ces écrivains referment le flux sous-jacent quand on les libère, alors que
-/// l'enregistrement vit dans un MemoryStream qu'il faut ensuite relire.
+/// Le WAV est le format d'échange interne : ce que l'enregistreur rend, ce
+/// que le mode diagnostic écrit sur disque, et ce que le moteur relit. On
+/// construit l'en-tête à la main : les écrivains de bibliothèque referment
+/// le flux sous-jacent, or l'enregistrement vit dans un MemoryStream qu'il
 ///
-/// Un en-tête faux ne provoque pas une erreur claire : whisper le charge et
+/// faut ensuite relire. Un en-tête faux ne lève rien : le moteur le charge et
 /// transcrit du bruit. D'où les tests sur les octets produits.
 /// </summary>
 public static class WavFile

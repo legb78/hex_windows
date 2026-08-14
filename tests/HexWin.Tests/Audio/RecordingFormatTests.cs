@@ -6,9 +6,9 @@ namespace HexWin.Tests.Audio;
 public class RecordingFormatTests
 {
     [Fact]
-    public void Le_format_est_celui_qu_exige_whisper()
+    public void Le_format_est_celui_qu_exige_le_modele()
     {
-        // Ces trois valeurs ne sont pas un choix : whisper.cpp n'accepte que
+        // Ces trois valeurs ne sont pas un choix : le modèle n'accepte que
         // du 16 kHz mono 16 bits. Les changer casserait la transcription.
         Assert.Equal(16_000, RecordingFormat.SampleRate);
         Assert.Equal(1, RecordingFormat.Channels);

@@ -15,4 +15,13 @@
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- PreserveNewest et non Always : une configuration modifiée par
+         l'utilisateur à côté de l'exécutable ne doit pas être écrasée à
+         chaque compilation. -->
+    <None Update="settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

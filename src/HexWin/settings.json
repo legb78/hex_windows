@@ -1,0 +1,39 @@
+{
+  // Configuration de HexWin. Les commentaires sont autorisés.
+  // Une valeur invalide est silencieusement remplacée par son défaut :
+  // un fichier abîmé n'empêche jamais la dictée de démarrer.
+
+  // Modèle GGML, relatif au dossier de l'exécutable.
+  // Téléchargeable avec scripts/get-model.ps1
+  "modelPath": "models/ggml-large-v3-turbo.bin",
+
+  // Langue de dictée : "fr" ou "en".
+  "language": "fr",
+
+  // Touches à maintenir pour dicter.
+  // Valeurs possibles : Ctrl, LeftCtrl, RightCtrl, Alt, LeftAlt, RightAlt,
+  // Shift, LeftShift, RightShift, Win, LeftWin, RightWin, CapsLock, Space,
+  // F13 à F24.
+  // La touche Fn n'est pas utilisable : elle est gérée par le contrôleur
+  // embarqué du clavier et n'émet aucun code visible par Windows.
+  "hotkey": ["Ctrl", "Win"],
+
+  // En deçà, l'appui est considéré comme accidentel et ignoré.
+  "minRecordingMilliseconds": 250,
+
+  // Coupe l'enregistrement si la touche reste enfoncée.
+  "maxRecordingSeconds": 120,
+
+  // Ordre d'essai des moteurs de calcul.
+  // "Vulkan" exploite le GPU (Intel Arc, AMD, Nvidia) ; "Cpu" est le repli.
+  // Cpu est ajouté automatiquement s'il manque, pour qu'il reste toujours
+  // un moteur capable de transcrire.
+  "runtimePreference": ["Vulkan", "Cpu"],
+
+  // "Paste" : presse-papiers puis Ctrl+V (instantané).
+  // "Type"  : frappe simulée, pour les applications qui ignorent le collage.
+  "insertion": "Paste",
+
+  // Journalise les transcriptions et le moteur réellement chargé.
+  "logEnabled": true
+}

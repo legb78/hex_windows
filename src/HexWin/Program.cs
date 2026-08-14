@@ -1,5 +1,6 @@
 using HexWin.Audio;
 using HexWin.Configuration;
+using HexWin.Input;
 using HexWin.Interop;
 using HexWin.Transcription;
 
@@ -37,8 +38,64 @@ internal static class Program
             return RecordToFile(recordTarget, ReadOption(args, "--seconds"));
         }
 
+        if (HasFlag(args, "--watch-hotkey"))
+        {
+            ConsoleBridge.Attach();
+            return WatchHotkey();
+        }
+
         // Le mode normal (barre système, raccourci global) arrive dans une
         // PR ultérieure.
+        return 0;
+    }
+
+    /// <summary>
+    /// Mode de diagnostic du raccourci : installe le hook et rend compte de
+    /// chaque déclenchement, sans enregistrer ni transcrire.
+    ///
+    /// C'est le seul moyen de vérifier cette couche : Windows marque toute
+    /// frappe injectée par un programme, et le hook les ignore délibérément
+    /// pour ne pas réagir à ce qu'il produit lui-même. Il faut donc un
+    /// véritable appui de doigt.
+    /// </summary>
+    private static int WatchHotkey()
+    {
+        AppSettings settings = AppSettings.Load(
+            Path.Combine(AppContext.BaseDirectory, AppSettings.FileName));
+
+        Console.WriteLine($"Raccourci : {string.Join(" + ", settings.Hotkey)}");
+        Console.WriteLine();
+        Console.WriteLine("Maintenez-le quelques secondes, puis relâchez.");
+        Console.WriteLine("Vérifiez surtout que le menu Démarrer ne s'ouvre PAS.");
+        Console.WriteLine("Ctrl+C pour quitter.");
+        Console.WriteLine();
+
+        using var hook = new KeyboardHook(new ChordDetector(settings.Hotkey));
+
+        hook.Started += (_, _) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}]  début");
+        hook.Stopped += (_, _) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}]  fin");
+        hook.Cancelled += (_, _) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}]  annulé");
+
+        try
+        {
+            hook.Install();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 5;
+        }
+
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true;
+            Application.ExitThread();
+        };
+
+        // Un hook bas niveau n'est alimenté que par une boucle de messages :
+        // sans elle, le rappel ne serait jamais appelé.
+        Application.Run();
+
         return 0;
     }
 
@@ -203,6 +260,9 @@ internal static class Program
         Console.WriteLine("      --model    remplace le modèle de settings.json");
         Console.WriteLine("      --provider remplace le fournisseur de calcul : cpu, directml, cuda");
         Console.WriteLine("");
+        Console.WriteLine();
+        Console.WriteLine("  HexWin.exe --watch-hotkey");
+        Console.WriteLine("      affiche les déclenchements du raccourci, sans transcrire");
         Console.WriteLine();
         Console.WriteLine("  HexWin.exe --record sortie.wav [--seconds 5]");
         Console.WriteLine("      enregistre le micro, écrit le WAV et mesure le niveau capté");

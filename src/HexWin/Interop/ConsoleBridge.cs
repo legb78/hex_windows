@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -12,6 +13,7 @@ namespace HexWin.Interop;
 /// en ligne de commande doit tout de même pouvoir écrire quelque part. On se
 /// rattache donc à la console du terminal appelant.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Coquille Win32 : se rattache à la console du processus appelant.")]
 internal static partial class ConsoleBridge
 {
     /// <summary>Valeur conventionnelle désignant le processus parent.</summary>

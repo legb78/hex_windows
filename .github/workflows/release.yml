@@ -1,23 +1,61 @@
 name: Publication
 
-# Ne se déclenche qu'à la pose d'une étiquette de version, ou à la demande.
-# Le coût en minutes Windows reste donc négligeable, contrairement à la CI
-# qui tourne à chaque PR.
+# Déploiement continu : toute fusion vers main publie la version inscrite dans
+# Directory.Build.props. Si l'étiquette correspondante existe déjà, le workflow
+# s'arrête sans rien faire — une fusion qui ne monte pas le numéro ne publie
+# donc rien, et le coût en minutes reste celui d'une lecture de fichier.
+#
+# Publier revient ainsi à monter <Version> dans une PR vers main.
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  publish:
+  verifier:
+    name: Version à publier ?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.lecture.outputs.version }}
+      publier: ${{ steps.controle.outputs.publier }}
+
+    steps:
+      - name: Récupération du code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Cette étape tourne sur Linux : lire un fichier XML ne justifie pas un
+      # runner Windows, facturé le double.
+      - name: Lecture de la version
+        id: lecture
+        run: |
+          version=$(grep -oPm1 '(?<=<Version>)[^<]+' Directory.Build.props)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Version déclarée : $version"
+
+      - name: L'étiquette existe-t-elle déjà ?
+        id: controle
+        run: |
+          if git rev-parse "v${{ steps.lecture.outputs.version }}" >/dev/null 2>&1; then
+            echo "publier=false" >> "$GITHUB_OUTPUT"
+            echo "v${{ steps.lecture.outputs.version }} est déjà publiée, rien à faire."
+          else
+            echo "publier=true" >> "$GITHUB_OUTPUT"
+            echo "v${{ steps.lecture.outputs.version }} est nouvelle, publication."
+          fi
+
+  publier:
     name: Exécutable autonome
+    needs: verifier
+    if: needs.verifier.outputs.publier == 'true'
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Récupération du code
@@ -28,6 +66,9 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
+      # Filet de sécurité : main ne devrait recevoir que du code déjà validé,
+      # mais publier sans repasser les tests reviendrait à s'en remettre à la
+      # discipline seule.
       - name: Tests unitaires
         run: dotnet test -c Release --filter "Category!=Integration"
 
@@ -50,12 +91,14 @@ jobs:
           Copy-Item publish/HexWin.exe package/
           Copy-Item publish/settings.json package/
           Copy-Item scripts/get-model.ps1 package/
-          Copy-Item README.md package/
+          Copy-Item README.md, LICENSE, NOTICE package/
           Compress-Archive -Path package/* -DestinationPath HexWin-win-x64.zip
 
       - name: Création de la publication
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ needs.verifier.outputs.version }}
+          name: HexWin v${{ needs.verifier.outputs.version }}
           files: HexWin-win-x64.zip
           generate_release_notes: true
           body: |

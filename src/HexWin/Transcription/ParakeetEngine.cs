@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using HexWin.Audio;
 using SherpaOnnx;
 
@@ -23,6 +24,7 @@ public readonly record struct TranscriptionResult(string Text, TimeSpan Duration
 ///
 /// Comme pour Whisper, le modèle est chargé une seule fois et reste résident.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Couverte par les tests d'intégration, qui chargent le moteur natif et sont exclus de la CI.")]
 public sealed class ParakeetEngine : IDisposable
 {
     private const int FeatureDimension = 80;

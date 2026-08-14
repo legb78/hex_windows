@@ -1,0 +1,41 @@
+version: 2
+
+updates:
+  # Dépendances NuGet
+  - package-ecosystem: nuget
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: develop
+    open-pull-requests-limit: 5
+    labels:
+      - dependances
+    commit-message:
+      prefix: 'chore(deps)'
+    groups:
+      # Les paquets de test bougent ensemble et n'affectent pas le produit
+      # livré : les regrouper évite trois PR pour une seule montée de version.
+      tests:
+        patterns:
+          - 'xunit*'
+          - 'Microsoft.NET.Test.Sdk'
+          - 'coverlet.*'
+      # Whisper.net est parti, mais sherpa-onnx et son runtime doivent
+      # impérativement monter ensemble : des versions dépareillées font
+      # échouer le chargement de la bibliothèque native.
+      moteur:
+        patterns:
+          - 'org.k2fsa.sherpa.onnx*'
+
+  # Actions GitHub. Le premier run de la CI avait signalé la dépréciation de
+  # Node.js 20 ; ce suivi évite de le redécouvrir dans les journaux.
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: monthly
+    target-branch: develop
+    labels:
+      - dependances
+    commit-message:
+      prefix: 'ci(deps)'

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using HexWin.Audio;
 using HexWin.Configuration;
 using HexWin.Diagnostics;
@@ -20,6 +21,7 @@ namespace HexWin.Tray;
 /// d'interface pour l'insertion : les API de presse-papiers exigent un fil STA
 /// initialisé pour OLE, ce que seul le fil d'interface garantit.</para>
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Coquille Windows Forms : exige une session interactive et une boucle de messages.")]
 internal sealed class TrayContext : ApplicationContext
 {
     private readonly AppSettings _settings;

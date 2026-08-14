@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using HexWin.Audio;
 using HexWin.Configuration;
 using HexWin.Diagnostics;
@@ -9,6 +10,7 @@ using HexWin.Tray;
 
 namespace HexWin;
 
+[ExcludeFromCodeCoverage(Justification = "Point d'entrée : aiguillage vers les modes, sans logique propre.")]
 internal static class Program
 {
     /// <summary>

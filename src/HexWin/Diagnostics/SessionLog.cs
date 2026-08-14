@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 namespace HexWin.Diagnostics;
@@ -13,6 +14,7 @@ namespace HexWin.Diagnostics;
 /// L'écriture ne doit jamais faire échouer une dictée par ailleurs réussie :
 /// toute erreur d'entrée-sortie est absorbée.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Écrit dans le dossier de données de l'utilisateur.")]
 public sealed class SessionLog
 {
     private readonly string? _path;

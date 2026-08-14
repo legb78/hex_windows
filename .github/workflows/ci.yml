@@ -27,9 +27,9 @@ concurrency:
 
 jobs:
   build-test:
-    name: Build et tests unitaires
+    name: Build, tests et couverture
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Récupération du code
@@ -50,11 +50,40 @@ jobs:
       - name: Restauration
         run: dotnet restore
 
+      # Échoue si une dépendance porte une faille connue, transitives
+      # comprises. dotnet ne rend pas un code d'erreur dans ce cas : on
+      # inspecte donc sa sortie.
+      - name: Dépendances vulnérables
+        shell: pwsh
+        run: |
+          $rapport = dotnet list package --vulnerable --include-transitive 2>&1 | Out-String
+          Write-Host $rapport
+          if ($rapport -match 'has the following vulnerable packages') {
+            Write-Error "Une dépendance porte une faille connue."
+            exit 1
+          }
+          Write-Host "Aucune dépendance vulnérable." -ForegroundColor Green
+
       - name: Compilation
         run: dotnet build -c Release --no-restore
 
-      # Les tests d'intégration (marqués Category=Integration) sont exclus :
-      # ils exigent un modèle Whisper de plusieurs dizaines de Mo et se lancent
-      # localement via  dotnet test --filter Category=Integration
-      - name: Tests unitaires
-        run: dotnet test -c Release --no-build --filter "Category!=Integration"
+      # Le formatage est vérifié après la compilation : une erreur de syntaxe
+      # donnerait ici un message bien moins clair que celui du compilateur.
+      - name: Formatage
+        run: dotnet format --verify-no-changes --no-restore
+
+      # Les seuils portent sur la logique pure uniquement : les coquilles
+      # Win32 sont marquées [ExcludeFromCodeCoverage], faute de pouvoir être
+      # atteintes sans micro, clavier ni session interactive. Mesurer leur
+      # couverture rendrait le chiffre insignifiant.
+      #
+      # Les tests d'intégration sont exclus : le modèle pèse 578 Mo.
+      - name: Tests et couverture
+        run: >
+          dotnet test -c Release --no-build
+          --filter "Category!=Integration"
+          -p:CollectCoverage=true
+          -p:ExcludeByAttribute=ExcludeFromCodeCoverage
+          -p:Threshold=75
+          -p:ThresholdType=line
+          -p:ThresholdStat=total

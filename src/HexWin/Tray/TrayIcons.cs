@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 
@@ -14,6 +15,7 @@ namespace HexWin.Tray;
 /// couleur fiable — la barre système peut être claire ou sombre. D'où des
 /// teintes franchement distinctes plutôt que des nuances.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Coquille GDI+ : produit des ressources graphiques du système.")]
 internal sealed partial class TrayIcons : IDisposable
 {
     private const int Size = 32;

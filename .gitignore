@@ -27,7 +27,7 @@ packages/
 
 ## Modèles Whisper — bien au-delà de la limite de 100 Mo de GitHub.
 ## Ils se téléchargent avec scripts/get-model.ps1
-models/
+models/*
 !models/.gitkeep
 *.bin
 

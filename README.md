@@ -8,79 +8,118 @@ abonnement, aucune connexion nécessaire une fois le modèle téléchargé.
 
 ![Architecture](docs/architecture.png)
 
-## État
+## Ce que ça donne
 
-En cours de construction. Ce que chaque étape apporte :
+Mesuré sur un Dell Pro Max 16 (Core Ultra 7 255H), sur processeur :
 
-| PR | Contenu | État |
-|----|---------|------|
-| 1 | Socle du projet et CI | ✅ |
-| 2 | Configuration (`settings.json`) | ✅ |
-| 3 | Moteur de transcription Parakeet | ✅ |
-| 4 | Capture du micro | ✅ |
-| 5 | Raccourci clavier global | ⏳ |
-| 6 | Insertion du texte | ⏳ |
-| 7 | Icône de barre système, application complète | ⏳ |
-| 8 | Exécutable téléchargeable | ⏳ |
+| Durée de la dictée | Attente après relâchement |
+|--------------------|---------------------------|
+| 0,6 s | 0,05 s |
+| 1,6 s | 0,08 s |
+| 5 s | 0,19 s |
+| 40 s | 1,58 s |
+
+Le moteur est **Parakeet TDT v3** de NVIDIA, celui qu'utilise [Hex](https://github.com/kitlangton/Hex)
+sur macOS. Il reconnaît seul la langue parlée parmi 25 langues européennes,
+français compris : il n'y a aucun réglage de langue à faire.
 
 ## Installation
 
-> Rien de tout ceci ne demande de savoir programmer. Trois commandes, une fois.
+### Si vous ne voulez rien compiler
 
-### 1. Le SDK .NET
-
-Vérifier qu'il est présent :
+Téléchargez l'archive de la [dernière version](https://github.com/legb78/hex_windows/releases),
+décompressez-la, puis dans PowerShell :
 
 ```powershell
-dotnet --version
+.\get-model.ps1     # environ 480 Mo, une seule fois
+.\HexWin.exe
 ```
 
-Si la commande est inconnue, installer le **SDK .NET 9** depuis
-<https://dotnet.microsoft.com/download>.
+Rien d'autre à installer — pas même .NET, il est embarqué dans l'exécutable.
 
-### 2. Télécharger le modèle
+### Si vous compilez vous-même
 
-```powershell
-.\scripts\get-model.ps1
-```
-
-Environ 480 Mo à télécharger, 578 Mo une fois installés. C'est
-**Parakeet TDT v3** de NVIDIA — le même moteur que Hex sur macOS. Il reconnaît
-seul la langue parlée parmi 25 langues européennes, français compris : il n'y
-a aucun réglage de langue à faire.
-
-### 3. Compiler
+Il faut le **SDK .NET 9** (<https://dotnet.microsoft.com/download>).
 
 ```powershell
+.\scripts\get-model.ps1     # télécharge le modèle
 dotnet build -c Release
+.\src\HexWin\bin\x64\Release\net9.0-windows\HexWin.exe
 ```
 
-### Vérifier que tout fonctionne
+## Utilisation
+
+L'icône de la barre système indique l'état :
+
+| Couleur | État |
+|---------|------|
+| Gris | Chargement du modèle, quelques secondes au démarrage |
+| Bleu | Prêt |
+| Rouge | Enregistrement en cours |
+| Orange | Transcription en cours |
+| Gris barré | Modèle introuvable |
+
+Maintenez `Ctrl` + `Windows`, parlez, relâchez. Le texte arrive au curseur.
+
+Le clic droit sur l'icône donne accès à la configuration, au journal, et au
+lancement automatique à l'ouverture de session.
+
+## Réglages
+
+Tout se passe dans `settings.json`, à côté de l'exécutable. Les commentaires y
+sont autorisés, et **une valeur invalide est remplacée par son défaut** plutôt
+que d'empêcher le démarrage.
+
+| Réglage | Rôle |
+|---------|------|
+| `hotkey` | Touches à maintenir. La touche `Fn` n'est pas utilisable : elle est gérée par le contrôleur du clavier et n'émet aucun code visible par Windows. |
+| `insertion` | `Paste` (presse-papiers, instantané) ou `Type` (frappe simulée, pour les applications qui ignorent le collage). |
+| `provider` | `cpu`, `directml` ou `cuda`. |
+| `threads` | Fils alloués au décodage. |
+| `minRecordingMilliseconds` | En deçà, l'appui est considéré comme accidentel. |
+| `maxRecordingSeconds` | Coupe l'enregistrement si la touche reste enfoncée. |
+
+## En cas de problème
+
+Trois modes de diagnostic, à lancer dans cet ordre — chacun isole une couche.
 
 ```powershell
-# transcrire un fichier et mesurer le temps
-.\src\HexWin\bin\x64\Release\net9.0-windows\HexWin.exe --transcribe mon-fichier.wav
+# 1. Le micro capte-t-il quelque chose ?
+.\HexWin.exe --record test.wav
 
-# enregistrer 5 s au micro et mesurer le niveau capté
-.\src\HexWin\bin\x64\Release\net9.0-windows\HexWin.exe --record test.wav
+# 2. Le moteur transcrit-il ?
+.\HexWin.exe --transcribe test.wav
+
+# 3. Le raccourci se déclenche-t-il ?
+.\HexWin.exe --watch-hotkey
+
+# et pour l'insertion seule
+.\HexWin.exe --inject "du texte"
 ```
 
-Le second est le premier réflexe quand la dictée ne rend rien : un micro coupé
-ou interdit par les réglages de confidentialité produit un fichier valide et
-parfaitement silencieux.
+Le premier est le réflexe le plus utile : un micro coupé ou interdit par les
+réglages de confidentialité produit un fichier parfaitement valide, de la
+bonne durée, et totalement silencieux. Sans le niveau affiché, on chercherait
+la panne du côté de la transcription.
 
-### 4. Lancer
+Le journal se trouve dans `%LOCALAPPDATA%\HexWin`.
 
-L'exécutable est produit dans `src/HexWin/bin/x64/Release/net9.0-windows/HexWin.exe`.
+### Limites connues
+
+- **Fenêtres administrateur** : une application non élevée ne peut pas envoyer
+  de frappes à une fenêtre lancée en administrateur. Lancez HexWin en
+  administrateur si le besoin se présente.
+- **Antivirus** : un hook clavier global est un motif que certains antivirus
+  signalent. Une exclusion sur l'exécutable peut être nécessaire.
 
 ## Développement
 
 ```powershell
-dotnet build -c Release     # compiler (aucun avertissement toléré)
+dotnet build -c Release     # aucun avertissement toléré
 dotnet test                 # tests unitaires
 ```
 
-Les tests d'intégration exigent le modèle Parakeet et ne tournent pas en CI :
+Les tests d'intégration chargent réellement le moteur et ne tournent pas en CI :
 
 ```powershell
 dotnet test --filter Category=Integration
@@ -89,17 +128,18 @@ dotnet test --filter Category=Integration
 ### Organisation du code
 
 L'architecture sépare délibérément deux couches, pour une raison de testabilité
-(voir le schéma ci-dessus, source éditable dans [docs/architecture.excalidraw](docs/architecture.excalidraw)) :
+(schéma ci-dessus, source éditable dans [docs/architecture.excalidraw](docs/architecture.excalidraw)) :
 
 - **Les coquilles Windows** (`KeyboardHook`, `AudioRecorder`, `ParakeetEngine`,
   `TextInjector`) branchent des API système et ne décident rien. Elles ne sont
   pas testables en automatique — pas de micro ni de session interactive sur un
   serveur d'intégration continue — et se vérifient à la main.
 - **La logique pure** (`ChordDetector`, `RecordingGuards`, `TranscriptCleaner`,
-  `AppSettings`) contient toutes les décisions, et se teste sans Windows. C'est
-  là que vivent les bugs coûteux : répétition automatique du clavier,
-  relâchement de touche dans le désordre, touche restée enfoncée après un
-  verrouillage de session.
+  `AppSettings`, `DictationCoordinator`) contient toutes les décisions et se
+  teste sans Windows. C'est là que vivent les bugs coûteux : répétition
+  automatique du clavier, relâchement de touche dans le désordre, touche restée
+  enfoncée après un verrouillage de session, seconde dictée déclenchée pendant
+  qu'une transcription tourne encore.
 
 ### Contribution
 
@@ -107,7 +147,7 @@ Deux branches au long cours :
 
 | Branche | Rôle |
 |---------|------|
-| `main` | Versions publiées. N'avance que depuis `develop`, au moment d'une release. |
+| `main` | Versions publiées. N'avance que depuis `develop`. |
 | `develop` | Intégration. C'est là que les branches de travail sont fusionnées. |
 
 Une branche par changement, créée **depuis `develop`** et fusionnée vers
@@ -119,8 +159,14 @@ Une branche par changement, créée **depuis `develop`** et fusionnée vers
 git checkout develop
 git pull
 git checkout -b feat/mon-sujet
-# ... travail, commits ...
 gh pr create --base develop
 ```
 
-La CI tourne sur les PR vers `main` comme vers `develop`.
+### Publier une version
+
+```powershell
+.\scripts\publish.ps1        # produit l'exécutable autonome en local
+```
+
+Une étiquette `v*` poussée sur `main` déclenche la publication automatique et
+attache l'archive à la Release GitHub.

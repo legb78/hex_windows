@@ -49,6 +49,12 @@ internal sealed partial class KeyboardHook : IDisposable
     private nint _hook;
     private bool _disposed;
 
+    /// <summary>
+    /// Date du dernier événement clavier observé. Sert au chien de garde à
+    /// distinguer « personne ne tape » de « le hook est mort ».
+    /// </summary>
+    private long _lastEventTicks = DateTime.UtcNow.Ticks;
+
     public KeyboardHook(ChordDetector detector)
     {
         _detector = detector;
@@ -93,8 +99,54 @@ internal sealed partial class KeyboardHook : IDisposable
         }
     }
 
+    /// <summary>
+    /// Réinstalle le hook s'il n'a rien vu passer depuis <paramref name="silence"/>.
+    ///
+    /// <para>Windows désinstalle un hook bas niveau <b>sans le dire</b> quand
+    /// son rappel dépasse le délai imparti. L'application reste alors
+    /// parfaitement saine en apparence — icône bleue, aucune erreur — mais le
+    /// raccourci ne répond plus, et seul un redémarrage le rétablit.</para>
+    ///
+    /// <para>Aucune API ne permet de savoir si un hook est encore vivant. On
+    /// se fie donc au silence : un clavier muet depuis plusieurs minutes est
+    /// soit un utilisateur absent, soit un hook mort. Réinstaller dans les
+    /// deux cas ne coûte rien et corrige le second.</para>
+    /// </summary>
+    /// <returns>Vrai si une réinstallation a eu lieu.</returns>
+    public bool RefreshIfSilent(TimeSpan silence)
+    {
+        if (_hook == 0 || _disposed)
+        {
+            return false;
+        }
+
+        var since = TimeSpan.FromTicks(DateTime.UtcNow.Ticks - Interlocked.Read(ref _lastEventTicks));
+
+        if (since < silence)
+        {
+            return false;
+        }
+
+        // Le nouveau hook est posé AVANT de retirer l'ancien : dans l'autre
+        // ordre, une frappe survenant entre les deux appels serait perdue.
+        nint renewed = SetWindowsHookExW(WhKeyboardLowLevel, _callback, 0, 0);
+
+        if (renewed == 0)
+        {
+            return false;
+        }
+
+        UnhookWindowsHookEx(_hook);
+        _hook = renewed;
+        Interlocked.Exchange(ref _lastEventTicks, DateTime.UtcNow.Ticks);
+
+        return true;
+    }
+
     private nint OnKeyboardEvent(int code, nint message, nint data)
     {
+        Interlocked.Exchange(ref _lastEventTicks, DateTime.UtcNow.Ticks);
+
         if (code != HcAction)
         {
             return CallNextHookEx(0, code, message, data);

@@ -170,3 +170,15 @@ gh pr create --base develop
 
 Une étiquette `v*` poussée sur `main` déclenche la publication automatique et
 attache l'archive à la Release GitHub.
+
+Le détail du flux de contribution se trouve dans [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Licence
+
+HexWin est distribué sous licence [Apache 2.0](LICENSE).
+
+Le moteur de reconnaissance est **Parakeet TDT 0.6B v3**, de NVIDIA, distribué
+sous licence CC-BY-4.0 — usage commercial autorisé. Les autres composants
+(sherpa-onnx, ONNX Runtime, NAudio, .NET) sont sous licences Apache 2.0 ou MIT.
+
+Le détail des attributions figure dans [NOTICE](NOTICE).

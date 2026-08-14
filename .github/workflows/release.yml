@@ -95,7 +95,7 @@ jobs:
           Compress-Archive -Path package/* -DestinationPath HexWin-win-x64.zip
 
       - name: Création de la publication
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ needs.verifier.outputs.version }}
           name: HexWin v${{ needs.verifier.outputs.version }}

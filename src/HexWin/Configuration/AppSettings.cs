@@ -182,19 +182,24 @@ public sealed class AppSettings
 
     private static string[] NormalizeHotkey(string[]? hotkey)
     {
-        if (hotkey is null)
+        if (hotkey is null || hotkey.Length == 0)
         {
             return [.. DefaultHotkey];
         }
 
-        string[] recognized = [.. hotkey
-            .Select(CanonicalHotkeyName)
-            .OfType<string>()
-            .Distinct(StringComparer.Ordinal)];
+        string?[] canonical = [.. hotkey.Select(CanonicalHotkeyName)];
 
-        // Un raccourci vide désarmerait la dictée sans le dire : on préfère
-        // revenir au défaut plutôt que de laisser l'application inutilisable.
-        return recognized.Length > 0 ? recognized : [.. DefaultHotkey];
+        // Une touche inconnue invalide le raccourci entier, elle n'est jamais
+        // simplement retirée. Retirer une touche ÉLARGIT la combinaison au
+        // lieu de la restreindre : ["Ctrl", "Fn"] deviendrait ["Ctrl"], et la
+        // dictée se déclencherait à chaque appui sur Ctrl. Mieux vaut revenir
+        // au défaut connu que produire un raccourci plus permissif que voulu.
+        if (canonical.Any(name => name is null))
+        {
+            return [.. DefaultHotkey];
+        }
+
+        return [.. canonical.OfType<string>().Distinct(StringComparer.Ordinal)];
     }
 
     private static string? CanonicalHotkeyName(string? name) =>

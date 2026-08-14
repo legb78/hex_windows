@@ -3,12 +3,18 @@ using System.Text.RegularExpressions;
 namespace HexWin.Transcription;
 
 /// <summary>
-/// Met au propre la sortie brute de Whisper avant insertion dans le champ actif.
+/// Met au propre la sortie brute du moteur avant insertion dans le champ actif.
 ///
-/// Whisper ne produit pas que de la parole : il émet aussi des annotations de
-/// bruit ambiant entre crochets, et invente parfois des formules toutes faites
-/// sur un enregistrement quasi silencieux. Coller ça tel quel serait au mieux
-/// surprenant, au pire embarrassant.
+/// Deux familles de corrections, d'origines différentes.
+///
+/// Les filtres d'annotations et de génériques inventés viennent du temps de
+/// Whisper, qui émet des marqueurs de bruit ambiant entre crochets et recrache
+/// des formules de sous-titrage sur un enregistrement silencieux. Parakeet est
+/// bien plus sobre là-dessus, mais ces filtres sont conservés : ils ne coûtent
+/// rien et couvrent les cas où le moteur dérape sur du bruit.
+///
+/// L'espacement typographique, lui, concerne directement Parakeet, qui écrit
+/// « vendredi? » à l'anglaise là où l'usage français attend « vendredi ? ».
 ///
 /// Classe volontairement pure : aucune dépendance, entièrement testable.
 /// </summary>
@@ -41,6 +47,7 @@ public static partial class TranscriptCleaner
         cleaned = MusicalNotes().Replace(cleaned, " ");
         cleaned = HallucinatedCredits().Replace(cleaned, " ");
         cleaned = Whitespace().Replace(cleaned, " ").Trim();
+        cleaned = FrenchPunctuationSpacing().Replace(cleaned, " $1");
 
         // Après retrait des annotations, il peut ne rester que de la
         // ponctuation orpheline. Insérer un « . » isolé serait pire que
@@ -99,6 +106,18 @@ public static partial class TranscriptCleaner
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Whitespace();
+
+    /// <summary>
+    /// Rétablit l'espace que la typographie française met avant les signes
+    /// doubles. Parakeet écrit « vendredi? », là où l'usage veut
+    /// « vendredi ? ».
+    ///
+    /// Le signe doit suivre une lettre ou un chiffre et être suivi d'une
+    /// espace ou de la fin du texte. Sans cette seconde condition, « 14:30 »
+    /// et « https://exemple.fr » se retrouveraient coupés en deux.
+    /// </summary>
+    [GeneratedRegex(@"(?<=[\p{L}\p{N}])([?!;:»])(?=\s|$)")]
+    private static partial Regex FrenchPunctuationSpacing();
 
     /// <summary>Au moins une lettre ou un chiffre : sinon il n'y a rien à insérer.</summary>
     [GeneratedRegex(@"[\p{L}\p{N}]")]

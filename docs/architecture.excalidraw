@@ -13,8 +13,8 @@
       "strokeColor": "#1e1e1e",
       "text": "HexWin — architecture",
       "fontSize": 28,
-      "createdAt": "2026-08-14T14:54:02.280Z",
-      "updatedAt": "2026-08-14T14:54:02.280Z",
+      "createdAt": "2026-08-14T19:30:14.973Z",
+      "updatedAt": "2026-08-14T19:30:14.973Z",
       "version": 1
     },
     {
@@ -25,11 +25,12 @@
       "width": 820,
       "height": 22,
       "strokeColor": "#868e96",
-      "text": "Maintenir Ctrl + Windows  →  parler  →  relâcher  →  le texte s'insère dans le champ actif",
+      "text": "Maintenir Ctrl + Windows  →  parler  →  relâcher  →  le texte s'insère dans le champ actif  (~0,2 s)",
       "fontSize": 16,
-      "createdAt": "2026-08-14T14:54:02.280Z",
-      "updatedAt": "2026-08-14T14:54:02.280Z",
-      "version": 1
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:47.531Z",
+      "version": 2,
+      "originalText": "Maintenir Ctrl + Windows  →  parler  →  relâcher  →  le texte s'insère dans le champ actif  (~0,2 s)"
     },
     {
       "id": "zoneA",
@@ -45,8 +46,8 @@
         "type": 3
       },
       "fillStyle": "solid",
-      "createdAt": "2026-08-14T14:54:02.285Z",
-      "updatedAt": "2026-08-14T14:54:02.285Z",
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:14.974Z",
       "version": 1
     },
     {
@@ -59,8 +60,8 @@
       "strokeColor": "#495057",
       "text": "Couche Windows — coquilles minces, sans logique, vérifiées à la main",
       "fontSize": 16,
-      "createdAt": "2026-08-14T14:54:02.285Z",
-      "updatedAt": "2026-08-14T14:54:02.285Z",
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:14.974Z",
       "version": 1
     },
     {
@@ -80,8 +81,8 @@
         "type": 3
       },
       "fillStyle": "solid",
-      "createdAt": "2026-08-14T14:54:02.285Z",
-      "updatedAt": "2026-08-14T14:54:02.285Z",
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:14.974Z",
       "version": 1
     },
     {
@@ -101,8 +102,8 @@
         "type": 3
       },
       "fillStyle": "solid",
-      "createdAt": "2026-08-14T14:54:02.285Z",
-      "updatedAt": "2026-08-14T14:54:02.285Z",
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:14.974Z",
       "version": 1
     },
     {
@@ -115,16 +116,16 @@
       "backgroundColor": "#d0ebff",
       "strokeColor": "#1971c2",
       "label": {
-        "text": "WhisperEngine\nWhisper.net · Vulkan"
+        "text": "ParakeetEngine\nsherpa-onnx · ONNX"
       },
       "fontSize": 16,
       "roundness": {
         "type": 3
       },
       "fillStyle": "solid",
-      "createdAt": "2026-08-14T14:54:02.286Z",
-      "updatedAt": "2026-08-14T14:54:02.286Z",
-      "version": 1
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:47.527Z",
+      "version": 2
     },
     {
       "id": "inject",
@@ -143,8 +144,8 @@
         "type": 3
       },
       "fillStyle": "solid",
-      "createdAt": "2026-08-14T14:54:02.287Z",
-      "updatedAt": "2026-08-14T14:54:02.287Z",
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:14.974Z",
       "version": 1
     },
     {
@@ -169,8 +170,8 @@
       "end": {
         "id": "rec"
       },
-      "createdAt": "2026-08-14T14:54:02.287Z",
-      "updatedAt": "2026-08-14T14:54:02.287Z",
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:14.974Z",
       "version": 1
     },
     {
@@ -195,8 +196,8 @@
       "end": {
         "id": "whisper"
       },
-      "createdAt": "2026-08-14T14:54:02.287Z",
-      "updatedAt": "2026-08-14T14:54:02.287Z",
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:14.974Z",
       "version": 1
     },
     {
@@ -221,8 +222,8 @@
       "end": {
         "id": "inject"
       },
-      "createdAt": "2026-08-14T14:54:02.291Z",
-      "updatedAt": "2026-08-14T14:54:02.291Z",
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:14.974Z",
       "version": 1
     },
     {
@@ -239,8 +240,8 @@
         "type": 3
       },
       "fillStyle": "solid",
-      "createdAt": "2026-08-14T14:54:02.291Z",
-      "updatedAt": "2026-08-14T14:54:02.291Z",
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:14.974Z",
       "version": 1
     },
     {
@@ -253,9 +254,9 @@
       "strokeColor": "#2b8a3e",
       "text": "Logique pure — couverte par les tests xUnit, rejouée en CI à chaque PR",
       "fontSize": 16,
-      "createdAt": "2026-08-14T14:54:02.291Z",
-      "updatedAt": "2026-08-14T14:55:23.730Z",
-      "version": 2
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:14.974Z",
+      "version": 1
     },
     {
       "id": "chord",
@@ -274,8 +275,8 @@
         "type": 3
       },
       "fillStyle": "solid",
-      "createdAt": "2026-08-14T14:54:02.291Z",
-      "updatedAt": "2026-08-14T14:54:02.291Z",
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:14.974Z",
       "version": 1
     },
     {
@@ -295,8 +296,8 @@
         "type": 3
       },
       "fillStyle": "solid",
-      "createdAt": "2026-08-14T14:54:02.291Z",
-      "updatedAt": "2026-08-14T14:54:02.291Z",
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:14.974Z",
       "version": 1
     },
     {
@@ -309,16 +310,16 @@
       "backgroundColor": "#b2f2bb",
       "strokeColor": "#2f9e44",
       "label": {
-        "text": "TranscriptCleaner\nartefacts Whisper"
+        "text": "TranscriptCleaner\nnettoyage & typographie"
       },
       "fontSize": 16,
       "roundness": {
         "type": 3
       },
       "fillStyle": "solid",
-      "createdAt": "2026-08-14T14:54:02.291Z",
-      "updatedAt": "2026-08-14T14:54:02.291Z",
-      "version": 1
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:33:40.483Z",
+      "version": 2
     },
     {
       "id": "settings",
@@ -337,9 +338,9 @@
         "type": 3
       },
       "fillStyle": "solid",
-      "createdAt": "2026-08-14T14:54:02.291Z",
-      "updatedAt": "2026-08-14T14:54:02.291Z",
-      "version": 1
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:47.530Z",
+      "version": 2
     },
     {
       "id": "mst2i6mgvlbo0pjs6l8",
@@ -364,8 +365,8 @@
       "end": {
         "id": "chord"
       },
-      "createdAt": "2026-08-14T14:54:02.291Z",
-      "updatedAt": "2026-08-14T14:54:02.291Z",
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:14.974Z",
       "version": 1
     },
     {
@@ -391,8 +392,8 @@
       "end": {
         "id": "guards"
       },
-      "createdAt": "2026-08-14T14:54:02.291Z",
-      "updatedAt": "2026-08-14T14:54:02.291Z",
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:14.974Z",
       "version": 1
     },
     {
@@ -418,8 +419,8 @@
       "end": {
         "id": "cleaner"
       },
-      "createdAt": "2026-08-14T14:54:02.291Z",
-      "updatedAt": "2026-08-14T14:54:02.291Z",
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:14.974Z",
       "version": 1
     },
     {
@@ -436,8 +437,8 @@
         "type": 3
       },
       "fillStyle": "solid",
-      "createdAt": "2026-08-14T14:54:02.291Z",
-      "updatedAt": "2026-08-14T14:54:02.291Z",
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:14.974Z",
       "version": 1
     },
     {
@@ -450,8 +451,8 @@
       "strokeColor": "#e8590c",
       "text": "Orchestration & ressources",
       "fontSize": 16,
-      "createdAt": "2026-08-14T14:54:02.291Z",
-      "updatedAt": "2026-08-14T14:54:02.291Z",
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:14.974Z",
       "version": 1
     },
     {
@@ -464,15 +465,15 @@
       "backgroundColor": "#ffec99",
       "strokeColor": "#e8590c",
       "label": {
-        "text": "TrayContext\nicône barre système, états, menu FR / EN"
+        "text": "TrayContext\nicône barre système, états, mono-instance"
       },
       "fontSize": 16,
       "roundness": {
         "type": 3
       },
       "fillStyle": "solid",
-      "createdAt": "2026-08-14T14:54:02.291Z",
-      "updatedAt": "2026-08-14T14:55:29.089Z",
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:33:40.484Z",
       "version": 2
     },
     {
@@ -485,16 +486,16 @@
       "backgroundColor": "#ffec99",
       "strokeColor": "#e8590c",
       "label": {
-        "text": "ggml-large-v3-turbo · 1,6 Go\nchargé 1 seule fois au démarrage, reste en RAM"
+        "text": "Parakeet TDT v3 · 578 Mo\nchargé 1 seule fois au démarrage, reste en RAM"
       },
       "fontSize": 16,
       "roundness": {
         "type": 3
       },
       "fillStyle": "solid",
-      "createdAt": "2026-08-14T14:54:02.292Z",
-      "updatedAt": "2026-08-14T14:54:02.292Z",
-      "version": 1
+      "createdAt": "2026-08-14T19:30:14.974Z",
+      "updatedAt": "2026-08-14T19:30:47.529Z",
+      "version": 2
     }
   ],
   "appState": {

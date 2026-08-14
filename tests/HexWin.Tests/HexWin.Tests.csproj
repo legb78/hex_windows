@@ -19,4 +19,13 @@
     <ProjectReference Include="..\..\src\HexWin\HexWin.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Enregistrement de référence des tests d'intégration : voix de
+         synthèse Windows, 16 kHz mono 16 bits, le format attendu par
+         whisper.cpp. -->
+    <None Update="Fixtures\*.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

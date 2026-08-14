@@ -25,7 +25,6 @@ namespace HexWin.Tray;
 internal sealed class TrayContext : ApplicationContext
 {
     private readonly AppSettings _settings;
-    private readonly string _modelPath;
     private readonly SessionLog _log;
 
     private readonly DictationCoordinator _coordinator = new();
@@ -36,16 +35,22 @@ internal sealed class TrayContext : ApplicationContext
     private readonly AudioRecorder _recorder;
     private readonly KeyboardHook _hook;
 
-    private ParakeetEngine? _engine;
+    private readonly EngineHost _engines;
 
     public TrayContext(AppSettings settings, string modelPath)
     {
         _settings = settings;
-        _modelPath = modelPath;
         _log = SessionLog.Create(settings.LogEnabled);
 
         _uiThread = SynchronizationContext.Current
             ?? throw new InvalidOperationException("TrayContext doit être créé sur le fil d'interface.");
+
+        _engines = new EngineHost(
+            modelPath,
+            settings.Provider,
+            settings.Threads,
+            IdlePolicy.FromMinutes(settings.UnloadAfterMinutes),
+            _log);
 
         _recorder = new AudioRecorder(RecordingGuards.From(settings));
         _recorder.MaximumReached += (_, _) => _uiThread.Post(_ => OnDictationEnded(), null);
@@ -69,16 +74,12 @@ internal sealed class TrayContext : ApplicationContext
     {
         try
         {
-            ParakeetEngine engine = await Task.Run(
-                () => ParakeetEngine.Load(_modelPath, _settings.Provider, _settings.Threads))
-                .ConfigureAwait(true);
+            // Le premier chargement a lieu au démarrage, pour que la toute
+            // première dictée soit immédiate. Les suivants, après libération
+            // pour inactivité, seront déclenchés à l'enfoncement de la touche.
+            await _engines.GetAsync().ConfigureAwait(true);
 
-            // Absorbe le coût de la première inférence, sinon payé par la
-            // première dictée de l'utilisateur.
-            await engine.WarmUpAsync().ConfigureAwait(true);
-
-            _engine = engine;
-            _log.Write($"moteur chargé ({_settings.Provider}, {_settings.Threads} fils)");
+            _log.Write($"prêt ({_settings.Provider}, {_settings.Threads} fils)");
             _coordinator.MarkReady();
         }
         catch (Exception ex) when (ex is FileNotFoundException or InvalidOperationException or DllNotFoundException)
@@ -99,6 +100,13 @@ internal sealed class TrayContext : ApplicationContext
             return;
         }
 
+        // Le rechargement est lancé ici, à l'enfoncement, et non au
+        // relâchement : il se déroule pendant que l'utilisateur parle. Sur une
+        // phrase de deux secondes, les trois secondes de chargement sont
+        // presque entièrement masquées.
+        _engines.SetBusy(true);
+        _engines.BeginLoad();
+
         try
         {
             _recorder.Start();
@@ -107,6 +115,7 @@ internal sealed class TrayContext : ApplicationContext
         {
             _log.Write($"micro indisponible : {ex.Message}");
             _coordinator.Cancel();
+            _engines.SetBusy(false);
             ShowBalloon("Micro indisponible", ex.Message);
         }
     }
@@ -124,6 +133,7 @@ internal sealed class TrayContext : ApplicationContext
         {
             // Appui trop bref : l'utilisateur a effleuré la touche.
             _coordinator.Complete();
+            _engines.SetBusy(false);
             return;
         }
 
@@ -135,20 +145,19 @@ internal sealed class TrayContext : ApplicationContext
         if (_coordinator.Cancel())
         {
             _recorder.Stop();
+            _engines.SetBusy(false);
             _log.Write("dictée annulée");
         }
     }
 
     private async Task TranscribeAsync(RecordedAudio audio)
     {
-        if (_engine is not { } engine)
-        {
-            _coordinator.Complete();
-            return;
-        }
-
         try
         {
+            // Rend la main immédiatement si le modèle est déjà là, sinon
+            // attend la fin du chargement commencé à l'enfoncement.
+            ParakeetEngine engine = await _engines.GetAsync().ConfigureAwait(true);
+
             using var wav = new MemoryStream(audio.Wav);
             TranscriptionResult result = await engine.TranscribeAsync(wav).ConfigureAwait(true);
 
@@ -170,6 +179,7 @@ internal sealed class TrayContext : ApplicationContext
         finally
         {
             _coordinator.Complete();
+            _engines.SetBusy(false);
         }
     }
 
@@ -255,7 +265,7 @@ internal sealed class TrayContext : ApplicationContext
         {
             _hook.Dispose();
             _recorder.Dispose();
-            _engine?.Dispose();
+            _engines.Dispose();
 
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();

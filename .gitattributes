@@ -4,6 +4,12 @@
 * text=auto
 
 # Fichiers Windows qui doivent rester en CRLF y compris dans le dépôt.
+#
+# Les .cs y figurent parce que .editorconfig impose end_of_line = crlf et que
+# dotnet format le vérifie en CI. Sans cette ligne, git livrerait des fins de
+# ligne dépendant de la machine, et la vérification échouerait sur le runner
+# alors que tout serait correct en local.
+*.cs        text eol=crlf
 *.sln       text eol=crlf
 *.csproj    text eol=crlf
 *.props     text eol=crlf

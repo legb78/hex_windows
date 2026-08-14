@@ -50,6 +50,26 @@ public sealed class ParakeetEngine : IDisposable
     /// vocabulaire — d'où un dossier plutôt qu'un fichier unique.
     /// </summary>
     /// <exception cref="FileNotFoundException">Un fichier du modèle manque.</exception>
+    /// <summary>
+    /// Vérifie que le modèle est complet, sans rien charger en mémoire.
+    ///
+    /// Permet de signaler un modèle absent ou incomplet dès le démarrage, y
+    /// compris quand le chargement lui-même est différé à la première dictée :
+    /// découvrir le problème au moment où l'utilisateur parle serait le pire
+    /// moment, sa phrase étant alors déjà perdue.
+    /// </summary>
+    /// <exception cref="FileNotFoundException">Un fichier du modèle manque.</exception>
+    public static void Validate(string modelDirectory)
+    {
+        foreach (string file in RequiredFiles)
+        {
+            RequireFile(modelDirectory, file);
+        }
+    }
+
+    private static readonly string[] RequiredFiles =
+        ["encoder.int8.onnx", "decoder.int8.onnx", "joiner.int8.onnx", "tokens.txt"];
+
     public static ParakeetEngine Load(string modelDirectory, string provider, int threads)
     {
         string encoder = RequireFile(modelDirectory, "encoder.int8.onnx");

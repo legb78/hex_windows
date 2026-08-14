@@ -26,6 +26,7 @@ internal sealed class TrayContext : ApplicationContext
 {
     private readonly AppSettings _settings;
     private readonly SessionLog _log;
+    private readonly string _modelPath;
 
     private readonly DictationCoordinator _coordinator = new();
     private readonly TrayIcons _icons = new();
@@ -45,6 +46,7 @@ internal sealed class TrayContext : ApplicationContext
     {
         _settings = settings;
         _log = SessionLog.Create(settings.LogEnabled);
+        _modelPath = modelPath;
 
         _uiThread = SynchronizationContext.Current
             ?? throw new InvalidOperationException("TrayContext doit être créé sur le fil d'interface.");
@@ -97,14 +99,34 @@ internal sealed class TrayContext : ApplicationContext
 
     // --- Cycle de vie du moteur -------------------------------------------------
 
+    /// <summary>
+    /// Prépare le moteur au démarrage.
+    ///
+    /// <para><b>Le modèle n'est chargé que si l'utilisateur a demandé qu'il
+    /// reste résident</b> (<c>unloadAfterMinutes = 0</c>). Sinon, le charger
+    /// ici reviendrait à occuper un gigaoctet dès l'ouverture de session pour
+    /// le rendre quelques minutes plus tard, sans qu'une seule dictée n'ait eu
+    /// lieu — exactement ce que la libération après inactivité cherchait à
+    /// éviter. Le chargement est alors différé à la première dictée, où il se
+    /// déroule pendant que l'utilisateur parle.</para>
+    ///
+    /// <para>Le modèle est en revanche <i>vérifié</i> dans tous les cas :
+    /// découvrir qu'il manque au moment où l'utilisateur parle serait le pire
+    /// moment, sa phrase étant alors déjà perdue.</para>
+    /// </summary>
     private async Task LoadEngineAsync()
     {
         try
         {
-            // Le premier chargement a lieu au démarrage, pour que la toute
-            // première dictée soit immédiate. Les suivants, après libération
-            // pour inactivité, seront déclenchés à l'enfoncement de la touche.
-            await _engines.GetAsync().ConfigureAwait(true);
+            if (_settings.UnloadAfterMinutes == 0)
+            {
+                await _engines.GetAsync().ConfigureAwait(true);
+            }
+            else
+            {
+                await Task.Run(() => ParakeetEngine.Validate(_modelPath)).ConfigureAwait(true);
+                _log.Write($"modèle vérifié, chargement différé à la première dictée");
+            }
 
             _log.Write($"prêt ({_settings.Provider}, {_settings.Threads} fils)");
             _coordinator.MarkReady();

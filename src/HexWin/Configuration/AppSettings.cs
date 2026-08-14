@@ -57,6 +57,16 @@ public sealed class AppSettings
     /// </summary>
     public int Threads { get; set; } = DefaultThreads;
 
+    /// <summary>
+    /// Minutes sans dictée au bout desquelles le modèle est libéré. Zéro le
+    /// garde résident indéfiniment.
+    ///
+    /// Le modèle occupe environ un gigaoctet. Le libérer rend cette mémoire au
+    /// système ; la dictée suivante paie un rechargement, largement masqué
+    /// puisqu'il démarre dès l'enfoncement de la touche, pendant qu'on parle.
+    /// </summary>
+    public int UnloadAfterMinutes { get; set; } = DefaultUnloadAfterMinutes;
+
     public InsertionMode Insertion { get; set; } = InsertionMode.Paste;
 
     /// <summary>Journalise les transcriptions et le moteur réellement chargé.</summary>
@@ -67,6 +77,8 @@ public sealed class AppSettings
     private const string DefaultModelPath = "models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8";
     private const string DefaultProvider = "cpu";
     private const int DefaultThreads = 4;
+    private const int DefaultUnloadAfterMinutes = 5;
+    private const int MaxUnloadAfterMinutes = 1_440;
     private const int MaxThreads = 32;
 
     private static readonly string[] DefaultHotkey = ["Ctrl", "Win"];
@@ -170,6 +182,9 @@ public sealed class AppSettings
         MinRecordingMilliseconds = Math.Clamp(MinRecordingMilliseconds, 0, 5_000);
         MaxRecordingSeconds = Math.Clamp(MaxRecordingSeconds, 5, 600);
         Threads = Math.Clamp(Threads, 1, MaxThreads);
+
+        // Zéro reste autorisé : c'est ainsi qu'on garde le modèle résident.
+        UnloadAfterMinutes = Math.Clamp(UnloadAfterMinutes, 0, MaxUnloadAfterMinutes);
 
         if (!Enum.IsDefined(Insertion))
         {

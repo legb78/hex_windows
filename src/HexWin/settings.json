@@ -36,6 +36,16 @@
   // que le parallélisme n'apporte.
   "threads": 4,
 
+  // Minutes sans dictée au bout desquelles le modèle est libéré de la
+  // mémoire. Mettre 0 le garde résident indéfiniment.
+  //
+  // Le modèle occupe environ 1 Go une fois chargé. Le libérer rend cette
+  // mémoire au système ; la dictée suivante paie un rechargement d'environ
+  // 3 s — mais celui-ci démarre dès que la touche est ENFONCÉE, donc pendant
+  // que vous parlez. Sur une phrase de deux secondes, l'attente réellement
+  // ressentie se réduit à ce qui dépasse.
+  "unloadAfterMinutes": 5,
+
   // "Paste" : presse-papiers puis Ctrl+V (instantané).
   // "Type"  : frappe simulée, pour les applications qui ignorent le collage.
   "insertion": "Paste",

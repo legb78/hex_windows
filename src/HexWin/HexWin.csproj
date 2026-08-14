@@ -13,6 +13,11 @@
 
     <ApplicationIcon></ApplicationIcon>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <!-- Exigé par LibraryImport, le générateur d'interop moderne. HexWin
+         appelle Win32 de bout en bout : console, hook clavier, SendInput.
+         Le projet de tests, lui, reste sans code unsafe. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,6 +27,12 @@
     <None Update="settings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />
   </ItemGroup>
 
 </Project>

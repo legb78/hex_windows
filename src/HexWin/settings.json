@@ -3,12 +3,14 @@
   // Une valeur invalide est silencieusement remplacée par son défaut :
   // un fichier abîmé n'empêche jamais la dictée de démarrer.
 
-  // Modèle GGML, relatif au dossier de l'exécutable.
+  // Dossier du modèle Parakeet, relatif à l'exécutable.
+  // C'est un dossier et non un fichier : le modèle se compose d'un encodeur,
+  // d'un décodeur, d'un joiner et d'un vocabulaire.
   // Téléchargeable avec scripts/get-model.ps1
-  "modelPath": "models/ggml-large-v3-turbo.bin",
+  "modelPath": "models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
 
-  // Langue de dictée : "fr" ou "en".
-  "language": "fr",
+  // Il n'y a pas de réglage de langue : Parakeet v3 reconnaît seul laquelle
+  // de ses 25 langues européennes est parlée, français compris.
 
   // Touches à maintenir pour dicter.
   // Valeurs possibles : Ctrl, LeftCtrl, RightCtrl, Alt, LeftAlt, RightAlt,
@@ -24,11 +26,15 @@
   // Coupe l'enregistrement si la touche reste enfoncée.
   "maxRecordingSeconds": 120,
 
-  // Ordre d'essai des moteurs de calcul.
-  // "Vulkan" exploite le GPU (Intel Arc, AMD, Nvidia) ; "Cpu" est le repli.
-  // Cpu est ajouté automatiquement s'il manque, pour qu'il reste toujours
-  // un moteur capable de transcrire.
-  "runtimePreference": ["Vulkan", "Cpu"],
+  // Fournisseur de calcul : "cpu", "directml" (GPU sous Windows) ou "cuda".
+  // Un fournisseur inconnu ou indisponible revient à "cpu", qui reste
+  // toujours capable de transcrire.
+  "provider": "cpu",
+
+  // Fils d'exécution alloués au décodage. Au-delà d'une poignée, le gain
+  // s'effondre : le modèle est petit et la synchronisation coûte davantage
+  // que le parallélisme n'apporte.
+  "threads": 4,
 
   // "Paste" : presse-papiers puis Ctrl+V (instantané).
   // "Type"  : frappe simulée, pour les applications qui ignorent le collage.

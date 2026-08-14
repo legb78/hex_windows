@@ -9,16 +9,17 @@ namespace HexWin.Tests.Configuration;
 /// </summary>
 public class AppSettingsTests
 {
+    private const string DefaultModel = "models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8";
+
     [Fact]
     public void Un_json_vide_rend_les_valeurs_par_defaut()
     {
         AppSettings settings = AppSettings.Parse("{}");
 
-        Assert.Equal("fr", settings.Language);
         Assert.Equal(["Ctrl", "Win"], settings.Hotkey);
-        Assert.Equal(["Vulkan", "Cpu"], settings.RuntimePreference);
+        Assert.Equal("cpu", settings.Provider);
         Assert.Equal(InsertionMode.Paste, settings.Insertion);
-        Assert.Equal("models/ggml-large-v3-turbo.bin", settings.ModelPath);
+        Assert.Equal(DefaultModel, settings.ModelPath);
         Assert.True(settings.LogEnabled);
     }
 
@@ -32,84 +33,75 @@ public class AppSettingsTests
     {
         AppSettings settings = AppSettings.Parse(json);
 
-        Assert.Equal("fr", settings.Language);
+        Assert.Equal("cpu", settings.Provider);
         Assert.Equal(["Ctrl", "Win"], settings.Hotkey);
     }
 
     [Fact]
     public void Les_cles_inconnues_sont_ignorees()
     {
-        // Une clé restée d'une version précédente ne doit pas tout faire échouer.
+        // Une clé restée d'une version précédente ne doit pas tout faire
+        // échouer. « language » en est un cas réel : le réglage existait au
+        // temps de Whisper, Parakeet détecte seul la langue parlée.
         AppSettings settings = AppSettings.Parse(
-            """{"language": "en", "reglageDisparu": 42, "autreChose": {"a": 1}}""");
+            """{"provider": "directml", "language": "fr", "runtimePreference": ["Vulkan"]}""");
 
-        Assert.Equal("en", settings.Language);
+        Assert.Equal("directml", settings.Provider);
     }
 
-    // --- Langue ---------------------------------------------------------------
+    // --- Fournisseur de calcul ------------------------------------------------
 
     [Theory]
-    [InlineData("de")]
+    [InlineData("cpu")]
+    [InlineData("directml")]
+    [InlineData("cuda")]
+    public void Les_fournisseurs_connus_sont_acceptes(string provider)
+    {
+        AppSettings settings = AppSettings.Parse($$"""{"provider": "{{provider}}"}""");
+
+        Assert.Equal(provider, settings.Provider);
+    }
+
+    [Theory]
+    [InlineData("CPU", "cpu")]
+    [InlineData("DirectML", "directml")]
+    [InlineData("  cuda  ", "cuda")]
+    public void Le_fournisseur_est_reconnu_quelle_que_soit_la_casse(string written, string expected)
+    {
+        AppSettings settings = AppSettings.Parse($$"""{"provider": "{{written}}"}""");
+
+        Assert.Equal(expected, settings.Provider);
+    }
+
+    [Theory]
+    [InlineData("vulkan")]
+    [InlineData("metal")]
     [InlineData("")]
     [InlineData("   ")]
-    [InlineData("francais")]
-    public void Une_langue_non_supportee_repli_sur_le_francais(string language)
+    public void Un_fournisseur_inconnu_repli_sur_le_processeur(string provider)
     {
-        AppSettings settings = AppSettings.Parse($$"""{"language": "{{language}}"}""");
+        // Le processeur est le seul repli toujours disponible : c'est ce qui
+        // garantit qu'il reste un moyen de transcrire, quelle que soit la
+        // machine.
+        AppSettings settings = AppSettings.Parse($$"""{"provider": "{{provider}}"}""");
 
-        Assert.Equal("fr", settings.Language);
+        Assert.Equal("cpu", settings.Provider);
     }
+
+    // --- Fils d'exécution -----------------------------------------------------
 
     [Theory]
-    [InlineData("FR", "fr")]
-    [InlineData("En", "en")]
-    [InlineData("  en  ", "en")]
-    public void La_langue_est_reconnue_quelle_que_soit_la_casse(string written, string expected)
+    [InlineData(-4, 1)]
+    [InlineData(0, 1)]
+    [InlineData(4, 4)]
+    [InlineData(1_000, 32)]
+    public void Le_nombre_de_fils_est_ramene_dans_ses_bornes(int written, int expected)
     {
-        AppSettings settings = AppSettings.Parse($$"""{"language": "{{written}}"}""");
+        // Zéro fil bloquerait le décodage ; mille saturerait la machine sans
+        // rien accélérer, le modèle étant petit.
+        AppSettings settings = AppSettings.Parse($$"""{"threads": {{written}}}""");
 
-        Assert.Equal(expected, settings.Language);
-    }
-
-    // --- Moteurs de calcul ----------------------------------------------------
-
-    [Fact]
-    public void Cpu_est_ajoute_en_dernier_recours_quand_il_manque()
-    {
-        // Invariant central : une configuration ne listant qu'un moteur
-        // potentiellement indisponible laisserait sinon l'application
-        // incapable de transcrire quoi que ce soit.
-        AppSettings settings = AppSettings.Parse("""{"runtimePreference": ["Vulkan"]}""");
-
-        Assert.Equal(["Vulkan", "Cpu"], settings.RuntimePreference);
-    }
-
-    [Fact]
-    public void Cpu_deja_present_garde_sa_place()
-    {
-        AppSettings settings = AppSettings.Parse("""{"runtimePreference": ["Cpu", "Vulkan"]}""");
-
-        Assert.Equal(["Cpu", "Vulkan"], settings.RuntimePreference);
-    }
-
-    [Fact]
-    public void Les_moteurs_inconnus_sont_ecartes()
-    {
-        AppSettings settings = AppSettings.Parse(
-            """{"runtimePreference": ["Metal", "Vulkan", "TotalementInvente"]}""");
-
-        Assert.Equal(["Vulkan", "Cpu"], settings.RuntimePreference);
-    }
-
-    [Theory]
-    [InlineData("""{"runtimePreference": []}""")]
-    [InlineData("""{"runtimePreference": ["Metal"]}""")]
-    [InlineData("""{"runtimePreference": null}""")]
-    public void Une_liste_de_moteurs_inexploitable_repli_sur_le_defaut(string json)
-    {
-        AppSettings settings = AppSettings.Parse(json);
-
-        Assert.Equal(["Vulkan", "Cpu"], settings.RuntimePreference);
+        Assert.Equal(expected, settings.Threads);
     }
 
     // --- Raccourci ------------------------------------------------------------
@@ -208,7 +200,7 @@ public class AppSettingsTests
     {
         AppSettings settings = AppSettings.Parse(json);
 
-        Assert.Equal("models/ggml-large-v3-turbo.bin", settings.ModelPath);
+        Assert.Equal(DefaultModel, settings.ModelPath);
     }
 
     [Fact]
@@ -219,12 +211,12 @@ public class AppSettingsTests
         AppSettings settings = AppSettings.Parse(
             """
             {
-              // la langue de dictée
-              "language": "en"
+              // le fournisseur de calcul
+              "provider": "directml"
             }
             """);
 
-        Assert.Equal("en", settings.Language);
+        Assert.Equal("directml", settings.Provider);
     }
 
     [Fact]
@@ -232,12 +224,12 @@ public class AppSettingsTests
     {
         var original = new AppSettings
         {
-            ModelPath = "models/ggml-tiny.bin",
-            Language = "en",
+            ModelPath = "models/autre-modele",
             Hotkey = ["CapsLock"],
             MinRecordingMilliseconds = 400,
             MaxRecordingSeconds = 60,
-            RuntimePreference = ["Cpu"],
+            Provider = "directml",
+            Threads = 8,
             Insertion = InsertionMode.Type,
             LogEnabled = false,
         };
@@ -245,11 +237,11 @@ public class AppSettingsTests
         AppSettings relu = AppSettings.Parse(original.ToJson());
 
         Assert.Equal(original.ModelPath, relu.ModelPath);
-        Assert.Equal(original.Language, relu.Language);
         Assert.Equal(original.Hotkey, relu.Hotkey);
         Assert.Equal(original.MinRecordingMilliseconds, relu.MinRecordingMilliseconds);
         Assert.Equal(original.MaxRecordingSeconds, relu.MaxRecordingSeconds);
-        Assert.Equal(original.RuntimePreference, relu.RuntimePreference);
+        Assert.Equal(original.Provider, relu.Provider);
+        Assert.Equal(original.Threads, relu.Threads);
         Assert.Equal(original.Insertion, relu.Insertion);
         Assert.False(relu.LogEnabled);
     }
@@ -270,20 +262,20 @@ public class AppSettingsTests
 
         AppSettings settings = AppSettings.Load(absent);
 
-        Assert.Equal("fr", settings.Language);
+        Assert.Equal("cpu", settings.Provider);
     }
 
     [Fact]
     public void Un_fichier_present_est_relu_correctement()
     {
         string path = Path.Combine(Path.GetTempPath(), $"hexwin-{Guid.NewGuid():N}.json");
-        File.WriteAllText(path, """{"language": "en", "hotkey": ["CapsLock"]}""");
+        File.WriteAllText(path, """{"provider": "cuda", "hotkey": ["CapsLock"]}""");
 
         try
         {
             AppSettings settings = AppSettings.Load(path);
 
-            Assert.Equal("en", settings.Language);
+            Assert.Equal("cuda", settings.Provider);
             Assert.Equal(["CapsLock"], settings.Hotkey);
         }
         finally

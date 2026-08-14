@@ -31,11 +31,12 @@ public sealed class AppSettings
 {
     public const string FileName = "settings.json";
 
-    /// <summary>Chemin du modèle GGML, relatif au dossier de l'exécutable.</summary>
-    public string ModelPath { get; set; } = "models/ggml-large-v3-turbo.bin";
-
-    /// <summary>Langue de dictée : "fr" ou "en".</summary>
-    public string Language { get; set; } = DefaultLanguage;
+    /// <summary>
+    /// Dossier du modèle Parakeet, relatif à l'exécutable. C'est un dossier et
+    /// non un fichier : le modèle se compose d'un encodeur, d'un décodeur,
+    /// d'un joiner et d'un vocabulaire.
+    /// </summary>
+    public string ModelPath { get; set; } = DefaultModelPath;
 
     /// <summary>Touches à maintenir pour dicter.</summary>
     public string[] Hotkey { get; set; } = ["Ctrl", "Win"];
@@ -46,11 +47,15 @@ public sealed class AppSettings
     /// <summary>Coupe l'enregistrement si la touche reste enfoncée.</summary>
     public int MaxRecordingSeconds { get; set; } = 120;
 
+    /// <summary>Fournisseur de calcul ONNX Runtime : cpu, directml ou cuda.</summary>
+    public string Provider { get; set; } = DefaultProvider;
+
     /// <summary>
-    /// Ordre d'essai des moteurs de calcul. Vulkan exploite le GPU Intel Arc ;
-    /// Cpu sert de repli et reste toujours présent en dernière position.
+    /// Fils d'exécution alloués au décodage. Au-delà d'une poignée, le gain
+    /// s'effondre : le modèle est petit et la synchronisation coûte plus que
+    /// le parallélisme n'apporte.
     /// </summary>
-    public string[] RuntimePreference { get; set; } = ["Vulkan", "Cpu"];
+    public int Threads { get; set; } = DefaultThreads;
 
     public InsertionMode Insertion { get; set; } = InsertionMode.Paste;
 
@@ -59,15 +64,15 @@ public sealed class AppSettings
 
     // --- Valeurs de référence -------------------------------------------------
 
-    private const string DefaultLanguage = "fr";
-    private const string CpuRuntime = "Cpu";
+    private const string DefaultModelPath = "models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8";
+    private const string DefaultProvider = "cpu";
+    private const int DefaultThreads = 4;
+    private const int MaxThreads = 32;
 
-    private static readonly string[] SupportedLanguages = ["fr", "en"];
     private static readonly string[] DefaultHotkey = ["Ctrl", "Win"];
-    private static readonly string[] DefaultRuntimePreference = ["Vulkan", CpuRuntime];
 
-    /// <summary>Moteurs connus de Whisper.net, dans leur orthographe attendue.</summary>
-    private static readonly string[] KnownRuntimes = ["Vulkan", "Cuda", "Cuda12", "OpenVino", CpuRuntime];
+    /// <summary>Fournisseurs reconnus par sherpa-onnx sous Windows.</summary>
+    private static readonly string[] KnownProviders = ["cpu", "directml", "cuda"];
 
     /// <summary>
     /// Touches admises dans un raccourci. Volontairement restreint : la touche
@@ -156,15 +161,15 @@ public sealed class AppSettings
     {
         if (string.IsNullOrWhiteSpace(ModelPath))
         {
-            ModelPath = new AppSettings().ModelPath;
+            ModelPath = DefaultModelPath;
         }
 
-        Language = NormalizeLanguage(Language);
         Hotkey = NormalizeHotkey(Hotkey);
-        RuntimePreference = NormalizeRuntimes(RuntimePreference);
+        Provider = NormalizeProvider(Provider);
 
         MinRecordingMilliseconds = Math.Clamp(MinRecordingMilliseconds, 0, 5_000);
         MaxRecordingSeconds = Math.Clamp(MaxRecordingSeconds, 5, 600);
+        Threads = Math.Clamp(Threads, 1, MaxThreads);
 
         if (!Enum.IsDefined(Insertion))
         {
@@ -172,12 +177,14 @@ public sealed class AppSettings
         }
     }
 
-    private static string NormalizeLanguage(string? language)
+    private static string NormalizeProvider(string? provider)
     {
-        string? match = SupportedLanguages.FirstOrDefault(
-            supported => string.Equals(supported, language?.Trim(), StringComparison.OrdinalIgnoreCase));
+        string? match = KnownProviders.FirstOrDefault(
+            known => string.Equals(known, provider?.Trim(), StringComparison.OrdinalIgnoreCase));
 
-        return match ?? DefaultLanguage;
+        // Le processeur est toujours disponible : c'est le seul repli qui ne
+        // puisse pas laisser l'application sans moyen de transcrire.
+        return match ?? DefaultProvider;
     }
 
     private static string[] NormalizeHotkey(string[]? hotkey)
@@ -204,31 +211,5 @@ public sealed class AppSettings
 
     private static string? CanonicalHotkeyName(string? name) =>
         KnownHotkeyNames.FirstOrDefault(
-            known => string.Equals(known, name?.Trim(), StringComparison.OrdinalIgnoreCase));
-
-    private static string[] NormalizeRuntimes(string[]? runtimes)
-    {
-        string[] recognized = runtimes is null
-            ? []
-            : [.. runtimes
-                .Select(CanonicalRuntimeName)
-                .OfType<string>()
-                .Distinct(StringComparer.Ordinal)];
-
-        if (recognized.Length == 0)
-        {
-            return [.. DefaultRuntimePreference];
-        }
-
-        // Invariant : le processeur reste toujours joignable en dernier ressort.
-        // Sans cette garantie, une configuration ne listant qu'un moteur
-        // indisponible laisserait l'application sans aucun moyen de transcrire.
-        return recognized.Contains(CpuRuntime, StringComparer.Ordinal)
-            ? recognized
-            : [.. recognized, CpuRuntime];
-    }
-
-    private static string? CanonicalRuntimeName(string? name) =>
-        KnownRuntimes.FirstOrDefault(
             known => string.Equals(known, name?.Trim(), StringComparison.OrdinalIgnoreCase));
 }

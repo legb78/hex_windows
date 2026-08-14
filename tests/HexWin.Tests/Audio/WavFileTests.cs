@@ -6,7 +6,7 @@ namespace HexWin.Tests.Audio;
 
 /// <summary>
 /// L'en-tête est vérifiée octet par octet, parce qu'une erreur ici ne provoque
-/// aucune exception : whisper.cpp charge le fichier et transcrit du bruit.
+/// aucune exception : le moteur charge le fichier et transcrit du bruit.
 /// Le symptôme serait « la dictée rend n'importe quoi », très loin de la cause.
 /// </summary>
 public class WavFileTests
@@ -48,7 +48,7 @@ public class WavFileTests
     }
 
     [Fact]
-    public void Le_format_annonce_est_celui_qu_attend_whisper()
+    public void Le_format_annonce_est_celui_qu_attend_le_moteur()
     {
         byte[] file = WavFile.Create(Pcm);
 

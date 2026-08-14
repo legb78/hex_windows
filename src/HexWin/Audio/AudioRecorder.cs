@@ -9,7 +9,7 @@ public readonly record struct RecordedAudio(byte[] Wav, TimeSpan Duration);
 
 /// <summary>
 /// Capture du micro par défaut de Windows, directement au format attendu par
-/// whisper.cpp.
+/// le moteur de reconnaissance.
 ///
 /// Coquille volontairement mince autour de NAudio : elle branche le
 /// périphérique et accumule les échantillons. Les décisions — durée trop

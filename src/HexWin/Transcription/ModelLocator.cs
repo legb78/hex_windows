@@ -53,7 +53,11 @@ public static class ModelLocator
         return null;
     }
 
-    /// <summary>Variante branchée sur le vrai système de fichiers.</summary>
+    /// <summary>
+    /// Variante branchée sur le vrai système de fichiers. Le modèle Parakeet
+    /// est un dossier — encodeur, décodeur, joiner et vocabulaire — d'où
+    /// Directory.Exists plutôt que File.Exists.
+    /// </summary>
     public static string? Resolve(string configuredPath, string baseDirectory) =>
-        Resolve(configuredPath, baseDirectory, File.Exists);
+        Resolve(configuredPath, baseDirectory, Directory.Exists);
 }

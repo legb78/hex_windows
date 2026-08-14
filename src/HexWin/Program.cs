@@ -26,7 +26,7 @@ internal static class Program
         if (wavPath is not null)
         {
             ConsoleBridge.Attach();
-            return TranscribeFile(wavPath, ReadOption(args, "--model"), ReadOption(args, "--runtime"));
+            return TranscribeFile(wavPath, ReadOption(args, "--model"), ReadOption(args, "--provider"));
         }
 
         string? recordTarget = ReadOption(args, "--record");
@@ -48,7 +48,7 @@ internal static class Program
     ///
     /// La mesure est le point important. Un micro coupé, débranché ou interdit
     /// par les réglages de confidentialité produit un fichier parfaitement
-    /// valide, de la bonne durée, et totalement silencieux — que Whisper
+    /// valide, de la bonne durée, et totalement silencieux — que le moteur
     /// transcrit ensuite en une phrase inventée. Sans niveau affiché, on
     /// chercherait la panne du côté de la transcription.
     /// </summary>
@@ -110,15 +110,14 @@ internal static class Program
     /// réellement utilisé et du temps passé.
     ///
     /// C'est l'outil de dépannage principal du projet. Il valide toute la
-    /// chaîne Whisper sans dépendre du micro ni du raccourci clavier : quand
+    /// chaîne de transcription sans dépendre du micro ni du raccourci clavier : quand
     /// la dictée ne fonctionne pas, c'est par là qu'on commence pour savoir
     /// de quel côté chercher.
     ///
-    /// Les options --model et --runtime servent à comparer deux
-    /// configurations sur le même enregistrement, notamment pour vérifier ce
-    /// que Vulkan apporte réellement face au processeur.
+    /// Les options --model et --provider servent à comparer deux
+    /// configurations sur le même enregistrement.
     /// </summary>
-    private static int TranscribeFile(string wavPath, string? modelOverride, string? runtimeOverride)
+    private static int TranscribeFile(string wavPath, string? modelOverride, string? providerOverride)
     {
         if (!File.Exists(wavPath))
         {
@@ -134,10 +133,9 @@ internal static class Program
             settings.ModelPath = modelOverride;
         }
 
-        if (runtimeOverride is not null)
+        if (providerOverride is not null)
         {
-            settings.RuntimePreference = runtimeOverride.Split(',', StringSplitOptions.RemoveEmptyEntries
-                | StringSplitOptions.TrimEntries);
+            settings.Provider = providerOverride;
         }
 
         // Réapplique les garde-fous : une option de ligne de commande passe
@@ -156,18 +154,16 @@ internal static class Program
         try
         {
             Console.WriteLine($"Modèle    : {Path.GetFileName(modelPath)}");
-            Console.WriteLine($"Langue    : {settings.Language}");
-            Console.WriteLine($"Demandé   : {string.Join(", ", settings.RuntimePreference)}");
+            Console.WriteLine($"Calcul    : {settings.Provider}, {settings.Threads} fils");
             Console.WriteLine("Chargement du modèle...");
 
-            using var engine = WhisperEngine.Load(modelPath, settings.RuntimePreference);
+            using var engine = ParakeetEngine.Load(modelPath, settings.Provider, settings.Threads);
 
-            Console.WriteLine($"Moteur    : {engine.LoadedRuntime}");
             Console.WriteLine();
 
             using FileStream wav = File.OpenRead(wavPath);
             TranscriptionResult result = engine
-                .TranscribeAsync(wav, settings.Language)
+                .TranscribeAsync(wav)
                 .GetAwaiter()
                 .GetResult();
 
@@ -201,12 +197,12 @@ internal static class Program
         Console.WriteLine("  HexWin.exe");
         Console.WriteLine("      lance l'application dans la barre système");
         Console.WriteLine();
-        Console.WriteLine("  HexWin.exe --transcribe fichier.wav [--model chemin] [--runtime liste]");
+        Console.WriteLine("  HexWin.exe --transcribe fichier.wav [--model dossier] [--provider cpu]");
         Console.WriteLine("      transcrit un fichier et affiche le texte, le moteur et la durée");
         Console.WriteLine();
         Console.WriteLine("      --model    remplace le modèle de settings.json");
-        Console.WriteLine("      --runtime  remplace l'ordre des moteurs, séparés par des virgules");
-        Console.WriteLine("                 exemple : --runtime Cpu   pour comparer avec Vulkan");
+        Console.WriteLine("      --provider remplace le fournisseur de calcul : cpu, directml, cuda");
+        Console.WriteLine("");
         Console.WriteLine();
         Console.WriteLine("  HexWin.exe --record sortie.wav [--seconds 5]");
         Console.WriteLine("      enregistre le micro, écrit le WAV et mesure le niveau capté");

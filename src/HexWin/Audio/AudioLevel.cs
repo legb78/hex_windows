@@ -7,7 +7,7 @@ namespace HexWin.Audio;
 /// capte-t-il réellement quelque chose ? ». Un micro coupé, mal branché ou
 /// interdit par les réglages de confidentialité produit un fichier
 /// parfaitement valide, de la bonne durée, et entièrement silencieux — que
-/// Whisper transcrit en une phrase inventée. Sans mesure, le diagnostic part
+/// le moteur transcrit en une phrase inventée. Sans mesure, le diagnostic part
 /// dans la mauvaise direction.
 /// </summary>
 public static class AudioLevel

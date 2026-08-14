@@ -1,0 +1,72 @@
+name: Publication
+
+# Ne se déclenche qu'à la pose d'une étiquette de version, ou à la demande.
+# Le coût en minutes Windows reste donc négligeable, contrairement à la CI
+# qui tourne à chaque PR.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Exécutable autonome
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Récupération du code
+        uses: actions/checkout@v7
+
+      - name: Installation du SDK .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Tests unitaires
+        run: dotnet test -c Release --filter "Category!=Integration"
+
+      # Autonome et en fichier unique : l'utilisateur n'a rien à installer,
+      # pas même le runtime .NET. Les bibliothèques natives de sherpa-onnx
+      # sont embarquées et extraites au premier lancement.
+      - name: Publication
+        run: >
+          dotnet publish src/HexWin/HexWin.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=none
+          -o publish
+
+      - name: Assemblage de l'archive
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path package | Out-Null
+          Copy-Item publish/HexWin.exe package/
+          Copy-Item publish/settings.json package/
+          Copy-Item scripts/get-model.ps1 package/
+          Copy-Item README.md package/
+          Compress-Archive -Path package/* -DestinationPath HexWin-win-x64.zip
+
+      - name: Création de la publication
+        uses: softprops/action-gh-release@v2
+        with:
+          files: HexWin-win-x64.zip
+          generate_release_notes: true
+          body: |
+            ## Installation
+
+            1. Décompressez l'archive où vous voulez.
+            2. Ouvrez PowerShell dans le dossier et lancez `.\get-model.ps1`
+               pour télécharger le modèle (environ 480 Mo).
+            3. Double-cliquez sur `HexWin.exe`.
+
+            L'icône apparaît en gris le temps du chargement, puis passe au
+            bleu. Maintenez alors `Ctrl` + `Windows`, parlez, relâchez.
+
+            Aucune installation de .NET n'est nécessaire : tout est embarqué.

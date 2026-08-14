@@ -44,33 +44,37 @@ public class AppSettingsTests
         // échouer. « language » en est un cas réel : le réglage existait au
         // temps de Whisper, Parakeet détecte seul la langue parlée.
         AppSettings settings = AppSettings.Parse(
-            """{"provider": "directml", "language": "fr", "runtimePreference": ["Vulkan"]}""");
+            """{"provider": "cpu", "language": "fr", "runtimePreference": ["Vulkan"]}""");
 
-        Assert.Equal("directml", settings.Provider);
+        Assert.Equal("cpu", settings.Provider);
     }
 
     // --- Fournisseur de calcul ------------------------------------------------
 
     [Theory]
-    [InlineData("cpu")]
-    [InlineData("directml")]
-    [InlineData("cuda")]
-    public void Les_fournisseurs_connus_sont_acceptes(string provider)
-    {
-        AppSettings settings = AppSettings.Parse($$"""{"provider": "{{provider}}"}""");
-
-        Assert.Equal(provider, settings.Provider);
-    }
-
-    [Theory]
+    [InlineData("cpu", "cpu")]
     [InlineData("CPU", "cpu")]
-    [InlineData("DirectML", "directml")]
-    [InlineData("  cuda  ", "cuda")]
-    public void Le_fournisseur_est_reconnu_quelle_que_soit_la_casse(string written, string expected)
+    [InlineData("  Cpu  ", "cpu")]
+    public void Le_processeur_est_reconnu_quelle_que_soit_la_casse(string written, string expected)
     {
         AppSettings settings = AppSettings.Parse($$"""{"provider": "{{written}}"}""");
 
         Assert.Equal(expected, settings.Provider);
+    }
+
+    [Theory]
+    [InlineData("directml")]
+    [InlineData("cuda")]
+    public void Les_fournisseurs_GPU_sont_refuses_car_indisponibles(string provider)
+    {
+        // Retirés après essai : sherpa-onnx les acceptait, affichait un
+        // avertissement sur sa sortie native, puis retombait sur le
+        // processeur. Le réglage promettait une accélération inatteignable
+        // sans que rien ne le signale. Les paquets NuGet de sherpa-onnx ne
+        // sont compilés que pour le processeur.
+        AppSettings settings = AppSettings.Parse($$"""{"provider": "{{provider}}"}""");
+
+        Assert.Equal("cpu", settings.Provider);
     }
 
     [Theory]
@@ -80,9 +84,6 @@ public class AppSettingsTests
     [InlineData("   ")]
     public void Un_fournisseur_inconnu_repli_sur_le_processeur(string provider)
     {
-        // Le processeur est le seul repli toujours disponible : c'est ce qui
-        // garantit qu'il reste un moyen de transcrire, quelle que soit la
-        // machine.
         AppSettings settings = AppSettings.Parse($$"""{"provider": "{{provider}}"}""");
 
         Assert.Equal("cpu", settings.Provider);
@@ -211,12 +212,12 @@ public class AppSettingsTests
         AppSettings settings = AppSettings.Parse(
             """
             {
-              // le fournisseur de calcul
-              "provider": "directml"
+              // le raccourci
+              "hotkey": ["CapsLock"]
             }
             """);
 
-        Assert.Equal("directml", settings.Provider);
+        Assert.Equal(["CapsLock"], settings.Hotkey);
     }
 
     [Fact]
@@ -228,7 +229,7 @@ public class AppSettingsTests
             Hotkey = ["CapsLock"],
             MinRecordingMilliseconds = 400,
             MaxRecordingSeconds = 60,
-            Provider = "directml",
+            Provider = "cpu",
             Threads = 8,
             Insertion = InsertionMode.Type,
             LogEnabled = false,
@@ -269,13 +270,13 @@ public class AppSettingsTests
     public void Un_fichier_present_est_relu_correctement()
     {
         string path = Path.Combine(Path.GetTempPath(), $"hexwin-{Guid.NewGuid():N}.json");
-        File.WriteAllText(path, """{"provider": "cuda", "hotkey": ["CapsLock"]}""");
+        File.WriteAllText(path, """{"threads": 8, "hotkey": ["CapsLock"]}""");
 
         try
         {
             AppSettings settings = AppSettings.Load(path);
 
-            Assert.Equal("cuda", settings.Provider);
+            Assert.Equal(8, settings.Threads);
             Assert.Equal(["CapsLock"], settings.Hotkey);
         }
         finally

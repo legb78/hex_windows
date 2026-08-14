@@ -83,8 +83,26 @@ public sealed class AppSettings
 
     private static readonly string[] DefaultHotkey = ["Ctrl", "Win"];
 
-    /// <summary>Fournisseurs reconnus par sherpa-onnx sous Windows.</summary>
-    private static readonly string[] KnownProviders = ["cpu", "directml", "cuda"];
+    /// <summary>
+    /// Fournisseurs de calcul réellement disponibles.
+    ///
+    /// <para>Le processeur est le seul, et ce n'est pas un choix : les paquets
+    /// NuGet de sherpa-onnx ne sont compilés que pour lui. Interrogé,
+    /// ONNX Runtime répond « Available providers: CPUExecutionProvider ».</para>
+    ///
+    /// <para><b>« directml » et « cuda » ont été retirés après essai.</b>
+    /// sherpa-onnx les acceptait, affichait un avertissement sur sa sortie
+    /// d'erreur native — « DirectML is for Windows only. Fallback to cpu! »,
+    /// message trompeur puisqu'on est justement sous Windows — puis retombait
+    /// sur le processeur. Le réglage promettait donc une accélération
+    /// inatteignable, sans que rien ne le signale à l'utilisateur.</para>
+    ///
+    /// <para>Exploiter un GPU demanderait de recompiler sherpa-onnx avec
+    /// -DSHERPA_ONNX_ENABLE_GPU=ON et de remplacer les bibliothèques natives.
+    /// Le gain serait de toute façon incertain : le processeur transcrit déjà
+    /// une phrase de cinq secondes en 0,17 s.</para>
+    /// </summary>
+    private static readonly string[] KnownProviders = ["cpu"];
 
     /// <summary>
     /// Touches admises dans un raccourci. Volontairement restreint : la touche

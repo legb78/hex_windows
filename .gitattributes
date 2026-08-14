@@ -1,0 +1,24 @@
+# Normalise les fins de ligne à la validation (LF dans le dépôt) et restitue
+# du CRLF dans la copie de travail sous Windows. Sans ça, git signale des
+# fichiers modifiés alors que seul le retour chariot diffère.
+* text=auto
+
+# Fichiers Windows qui doivent rester en CRLF y compris dans le dépôt.
+*.sln       text eol=crlf
+*.csproj    text eol=crlf
+*.props     text eol=crlf
+*.targets   text eol=crlf
+*.ps1       text eol=crlf
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
+
+# Fichiers qui doivent rester en LF quel que soit le système.
+*.sh        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+
+# Binaires : aucune conversion.
+*.png       binary
+*.ico       binary
+*.bin       binary
+*.wav       binary

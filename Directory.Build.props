@@ -1,0 +1,17 @@
+<Project>
+
+  <!-- Réglages communs à tous les projets de la solution. -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Le moindre avertissement fait échouer la compilation : c'est ce qui
+         garde le code propre sans avoir à y penser, en local comme en CI. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+
+</Project>

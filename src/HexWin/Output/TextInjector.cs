@@ -97,8 +97,58 @@ internal sealed partial class TextInjector
         previous.Restore();
     }
 
+    /// <summary>
+    /// Relâche les modificateurs que le système croit encore enfoncés, avant
+    /// d'injecter un raccourci.
+    ///
+    /// <para>Sans cette précaution, <c>Ctrl+V</c> se combine avec ce qui reste
+    /// actif et devient un tout autre raccourci. Le cas rencontré : la touche
+    /// Windows encore tenue transformait le collage en <b>Win+Ctrl+V</b>, qui
+    /// ouvre le panneau de sortie audio de Windows. Le panneau volait le
+    /// focus, et le texte transcrit disparaissait — sans erreur, sans trace,
+    /// et de façon intermittente selon l'ordre dans lequel l'utilisateur
+    /// relâchait ses touches.</para>
+    ///
+    /// <para>On n'injecte le relâchement que pour les touches réellement
+    /// actives : un relâchement superflu est inoffensif, mais autant ne pas
+    /// polluer la file d'événements.</para>
+    /// </summary>
+    private static void ReleaseStrayModifiers()
+    {
+        int[] stray = [.. ModifiersToClear.Where(IsPhysicallyDown)];
+
+        if (stray.Length == 0)
+        {
+            return;
+        }
+
+        Input[] inputs = [.. stray.Select(key => NewVirtualKey((ushort)key, keyUp: true))];
+
+        Send(inputs);
+    }
+
+    /// <summary>
+    /// Modificateurs susceptibles de détourner Ctrl+V. Le Ctrl que l'on
+    /// injecte soi-même n'y figure pas, évidemment.
+    /// </summary>
+    private static readonly int[] ModifiersToClear =
+    [
+        VirtualKeys.LeftWindows,
+        VirtualKeys.RightWindows,
+        VirtualKeys.LeftMenu,
+        VirtualKeys.RightMenu,
+        VirtualKeys.LeftShift,
+        VirtualKeys.RightShift,
+    ];
+
+    /// <summary>Le bit de poids fort indique une touche actuellement enfoncée.</summary>
+    private static bool IsPhysicallyDown(int virtualKey) =>
+        (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
+
     private static void SendPasteShortcut()
     {
+        ReleaseStrayModifiers();
+
         Span<Input> inputs =
         [
             NewVirtualKey((ushort)ControlKey, keyUp: false),
@@ -210,4 +260,7 @@ internal sealed partial class TextInjector
 
     [LibraryImport("user32.dll", SetLastError = true)]
     private static partial uint SendInput(uint cInputs, ref Input pInputs, int cbSize);
+
+    [LibraryImport("user32.dll")]
+    private static partial short GetAsyncKeyState(int vKey);
 }

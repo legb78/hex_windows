@@ -1,26 +1,26 @@
 namespace HexWin.Audio;
 
 /// <summary>
-/// Convertit les échantillons capturés vers la représentation attendue par
-/// le moteur de reconnaissance.
+/// Converts captured samples into the representation the recognition engine
+/// expects.
 ///
-/// Le micro rend des entiers 16 bits signés ; ONNX Runtime attend des
-/// flottants normalisés entre -1 et 1. Une erreur d'échelle ici ne provoque
-/// aucune exception : le modèle reçoit un signal saturé ou inaudible et rend
-/// du texte incohérent. D'où les tests sur les bornes.
+/// The microphone hands back signed 16-bit integers; ONNX Runtime wants
+/// floats normalised between -1 and 1. A scaling mistake here raises no
+/// exception: the model receives a clipped or inaudible signal and returns
+/// incoherent text. Hence the tests on the bounds.
 /// </summary>
 public static class PcmConverter
 {
     /// <summary>
-    /// Diviseur de normalisation. On utilise 32768 (et non 32767) parce que
-    /// c'est l'amplitude négative maximale d'un entier 16 bits signé :
-    /// diviser par 32767 ferait légèrement dépasser -1 sur le pic négatif.
+    /// Normalisation divisor. 32768 rather than 32767, because that is the
+    /// largest negative amplitude of a signed 16-bit integer: dividing by
+    /// 32767 would push the negative peak slightly past -1.
     /// </summary>
     private const float FullScale = 32768f;
 
     /// <summary>
-    /// Convertit des échantillons 16 bits signés petit-boutistes en flottants
-    /// normalisés. Un octet final isolé — tampon tronqué — est ignoré.
+    /// Converts little-endian signed 16-bit samples into normalised floats.
+    /// A lone trailing byte — a truncated buffer — is ignored.
     /// </summary>
     public static float[] ToNormalizedSamples(ReadOnlySpan<byte> pcm)
     {
@@ -39,7 +39,7 @@ public static class PcmConverter
     }
 
     /// <summary>
-    /// Variante prenant un fichier WAV complet : l'en-tête est écartée avant
+    /// Variant taking a whole WAV file: the header is dropped before
     /// conversion.
     /// </summary>
     public static float[] FromWav(ReadOnlySpan<byte> wav)

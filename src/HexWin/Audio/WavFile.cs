@@ -1,24 +1,23 @@
 namespace HexWin.Audio;
 
 /// <summary>
-/// Écrit l'en-tête WAV qui précède les échantillons bruts.
+/// Writes the WAV header that precedes the raw samples.
 ///
-/// Le WAV est le format d'échange interne : ce que l'enregistreur rend, ce
-/// que le mode diagnostic écrit sur disque, et ce que le moteur relit. On
-/// construit l'en-tête à la main : les écrivains de bibliothèque referment
-/// le flux sous-jacent, or l'enregistrement vit dans un MemoryStream qu'il
-///
-/// faut ensuite relire. Un en-tête faux ne lève rien : le moteur le charge et
-/// transcrit du bruit. D'où les tests sur les octets produits.
+/// WAV is the internal exchange format: what the recorder returns, what the
+/// diagnostic mode writes to disk, and what the engine reads back. The header
+/// is built by hand because library writers close the underlying stream,
+/// whereas a recording lives in a MemoryStream that has to be read afterwards.
+/// A wrong header raises nothing: the engine loads it and transcribes noise.
+/// Hence the tests on the bytes produced.
 /// </summary>
 public static class WavFile
 {
-    /// <summary>Taille de l'en-tête RIFF/WAVE canonique, en octets.</summary>
+    /// <summary>Size of the canonical RIFF/WAVE header, in bytes.</summary>
     public const int HeaderSize = 44;
 
     /// <summary>
-    /// Assemble un fichier WAV complet à partir d'échantillons bruts au
-    /// format <see cref="RecordingFormat"/>.
+    /// Assembles a complete WAV file from raw samples in
+    /// <see cref="RecordingFormat"/>.
     /// </summary>
     public static byte[] Create(ReadOnlySpan<byte> pcm)
     {
@@ -30,12 +29,12 @@ public static class WavFile
         return file;
     }
 
-    /// <summary>Fichier WAV entièrement silencieux, utile au préchauffage.</summary>
+    /// <summary>Entirely silent WAV file, useful for warming up.</summary>
     public static byte[] CreateSilence(TimeSpan duration) =>
         Create(new byte[RecordingFormat.BytesFor(duration)]);
 
     /// <summary>
-    /// Écrit l'en-tête dans les 44 premiers octets de <paramref name="target"/>.
+    /// Writes the header into the first 44 bytes of <paramref name="target"/>.
     /// </summary>
     public static void WriteHeader(Span<byte> target, int pcmByteCount)
     {
@@ -44,19 +43,19 @@ public static class WavFile
         if (target.Length < HeaderSize)
         {
             throw new ArgumentException(
-                $"L'en-tête WAV occupe {HeaderSize} octets.", nameof(target));
+                $"A WAV header takes up {HeaderSize} bytes.", nameof(target));
         }
 
         const int fmtChunkSize = 16;
         const short pcmFormat = 1;
 
         Write(target, 0, "RIFF"u8);
-        WriteInt32(target, 4, 36 + pcmByteCount);          // taille totale moins 8
+        WriteInt32(target, 4, 36 + pcmByteCount);          // total size minus 8
         Write(target, 8, "WAVE"u8);
 
         Write(target, 12, "fmt "u8);
         WriteInt32(target, 16, fmtChunkSize);
-        WriteInt16(target, 20, pcmFormat);                 // PCM non compressé
+        WriteInt16(target, 20, pcmFormat);                 // uncompressed PCM
         WriteInt16(target, 22, RecordingFormat.Channels);
         WriteInt32(target, 24, RecordingFormat.SampleRate);
         WriteInt32(target, 28, RecordingFormat.BytesPerSecond);
@@ -72,7 +71,7 @@ public static class WavFile
 
     private static void WriteInt32(Span<byte> target, int offset, int value)
     {
-        // WAV est petit-boutiste, quelle que soit la machine.
+        // WAV is little-endian, whatever the machine.
         target[offset] = (byte)value;
         target[offset + 1] = (byte)(value >> 8);
         target[offset + 2] = (byte)(value >> 16);

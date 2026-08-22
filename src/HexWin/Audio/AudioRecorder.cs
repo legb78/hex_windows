@@ -3,21 +3,20 @@ using NAudio.Wave;
 
 namespace HexWin.Audio;
 
-/// <summary>Un enregistrement retenu, prêt à être transcrit.</summary>
-/// <param name="Wav">Fichier WAV complet, en-tête comprise.</param>
-/// <param name="Duration">Durée réelle, déduite du nombre d'échantillons reçus.</param>
+/// <summary>A recording that was kept, ready to be transcribed.</summary>
+/// <param name="Wav">Complete WAV file, header included.</param>
+/// <param name="Duration">Real duration, derived from the samples received.</param>
 public readonly record struct RecordedAudio(byte[] Wav, TimeSpan Duration);
 
 /// <summary>
-/// Capture du micro par défaut de Windows, directement au format attendu par
-/// le moteur de reconnaissance.
+/// Captures the default Windows microphone, straight into the format the
+/// recognition engine expects.
 ///
-/// Coquille volontairement mince autour de NAudio : elle branche le
-/// périphérique et accumule les échantillons. Les décisions — durée trop
-/// courte, plafond atteint — appartiennent à <see cref="RecordingGuards"/>,
-/// qui se teste sans micro.
+/// A deliberately thin shell around NAudio: it opens the device and
+/// accumulates samples. The decisions — too short, ceiling reached — belong
+/// to <see cref="RecordingGuards"/>, which is testable without a microphone.
 /// </summary>
-[ExcludeFromCodeCoverage(Justification = "Coquille NAudio : exige un microphone physique.")]
+[ExcludeFromCodeCoverage(Justification = "NAudio shell: requires a physical microphone.")]
 public sealed class AudioRecorder : IDisposable
 {
     private readonly RecordingGuards _guards;
@@ -30,8 +29,8 @@ public sealed class AudioRecorder : IDisposable
     public AudioRecorder(RecordingGuards guards) => _guards = guards;
 
     /// <summary>
-    /// Levé quand la capture s'est arrêtée seule, plafond atteint. Permet à
-    /// l'interface de cesser d'afficher un enregistrement en cours.
+    /// Raised when capture stopped by itself, having hit the ceiling. Lets the
+    /// interface stop showing a recording in progress.
     /// </summary>
     public event EventHandler? MaximumReached;
 
@@ -47,11 +46,11 @@ public sealed class AudioRecorder : IDisposable
     }
 
     /// <summary>
-    /// Ouvre le micro et commence à accumuler. Sans effet si un enregistrement
-    /// est déjà en cours : la répétition automatique du clavier provoque des
-    /// appels en rafale, qui ne doivent pas repartir de zéro à chaque touche.
+    /// Opens the microphone and starts accumulating. Does nothing if a
+    /// recording is already running: keyboard auto-repeat fires calls in
+    /// bursts, and those must not restart from zero on every keystroke.
     /// </summary>
-    /// <exception cref="InvalidOperationException">Aucun micro disponible.</exception>
+    /// <exception cref="InvalidOperationException">No microphone available.</exception>
     public void Start()
     {
         lock (_sync)
@@ -78,9 +77,9 @@ public sealed class AudioRecorder : IDisposable
                     RecordingFormat.BitsPerSample,
                     RecordingFormat.Channels),
 
-                // Des tampons courts rendent l'arrêt réactif : au relâchement
-                // de la touche, on n'attend au pire que la fin du tampon
-                // courant avant de pouvoir transcrire.
+                // Short buffers keep stopping responsive: when the key is
+                // released, the worst wait before transcribing is the end of
+                // the current buffer.
                 BufferMilliseconds = 50,
             };
 
@@ -92,8 +91,8 @@ public sealed class AudioRecorder : IDisposable
     }
 
     /// <summary>
-    /// Referme le micro et rend l'enregistrement, ou <c>null</c> si l'appui
-    /// a été trop bref pour contenir de la parole.
+    /// Closes the microphone and returns the recording, or <c>null</c> if the
+    /// press was too brief to hold speech.
     /// </summary>
     public RecordedAudio? Stop()
     {
@@ -122,8 +121,8 @@ public sealed class AudioRecorder : IDisposable
 
         using (samples)
         {
-            // La durée est déduite du nombre d'échantillons réellement reçus,
-            // et non de l'horloge : c'est ce que le moteur entendra.
+            // Duration comes from the samples actually received, not from the
+            // clock: this is what the engine will hear.
             TimeSpan duration = RecordingFormat.DurationOf(samples.Length);
 
             if (_guards.IsTooShort(duration))
@@ -163,7 +162,7 @@ public sealed class AudioRecorder : IDisposable
             }
         }
 
-        // Hors du verrou : l'abonné peut vouloir appeler Stop().
+        // Outside the lock: the subscriber may want to call Stop().
         if (reachedMaximum)
         {
             MaximumReached?.Invoke(this, EventArgs.Empty);

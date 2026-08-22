@@ -216,9 +216,24 @@ internal sealed class TrayContext : ApplicationContext
             using var wav = new MemoryStream(audio.Wav);
             TranscriptionResult result = await engine.TranscribeAsync(wav).ConfigureAwait(true);
 
+            // Le niveau capté est journalisé avec chaque dictée, et pas
+            // seulement dans le mode diagnostic. Sans lui, « zéro caractère »
+            // est indiagnosticable : impossible de distinguer un micro qui
+            // n'entend rien d'un moteur qui ne reconnaît rien. Deux pannes
+            // très différentes, au même symptôme.
+            double peak = AudioLevel.Peak(audio.Wav.AsSpan(WavFile.HeaderSize));
+
             _log.Write(
-                $"{audio.Duration.TotalSeconds:F1} s dictées, transcrites en "
-                + $"{result.Duration.TotalSeconds:F2} s, {result.Text.Length} caractères");
+                $"{audio.Duration.TotalSeconds:F1} s dictées, niveau {peak:P1}, "
+                + $"transcrites en {result.Duration.TotalSeconds:F2} s, "
+                + $"{result.Text.Length} caractères");
+
+            if (result.Text.Length == 0)
+            {
+                _log.Write(AudioLevel.IsSilent(audio.Wav.AsSpan(WavFile.HeaderSize))
+                    ? "  → rien inséré : le micro n'a capté aucun son"
+                    : "  → rien inséré : du son a été capté mais aucune parole reconnue");
+            }
 
             if (result.Text.Length > 0)
             {

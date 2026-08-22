@@ -107,10 +107,17 @@ internal sealed partial class KeyboardHook : IDisposable
     /// parfaitement saine en apparence — icône bleue, aucune erreur — mais le
     /// raccourci ne répond plus, et seul un redémarrage le rétablit.</para>
     ///
-    /// <para>Aucune API ne permet de savoir si un hook est encore vivant. On
-    /// se fie donc au silence : un clavier muet depuis plusieurs minutes est
-    /// soit un utilisateur absent, soit un hook mort. Réinstaller dans les
-    /// deux cas ne coûte rien et corrige le second.</para>
+    /// <para>Aucune API ne permet d'interroger l'état d'un hook. On compare
+    /// donc ce que <i>nous</i> avons vu à ce que <i>Windows</i> a vu :
+    /// <c>GetLastInputInfo</c> rend la date de la dernière saisie du système,
+    /// indépendamment de notre hook. Si Windows a reçu des frappes que nous
+    /// n'avons pas vues, notre hook est mort. Si personne n'a rien tapé, il
+    /// n'y a rien à réparer.</para>
+    ///
+    /// <para>Une première version se contentait du silence de notre côté, ce
+    /// qui réinstallait le hook toutes les deux minutes pendant une nuit
+    /// entière : inutile, et le journal en devenait illisible — au point qu'un
+    /// vrai incident s'y serait noyé.</para>
     /// </summary>
     /// <returns>Vrai si une réinstallation a eu lieu.</returns>
     public bool RefreshIfSilent(TimeSpan silence)
@@ -120,9 +127,16 @@ internal sealed partial class KeyboardHook : IDisposable
             return false;
         }
 
-        var since = TimeSpan.FromTicks(DateTime.UtcNow.Ticks - Interlocked.Read(ref _lastEventTicks));
+        long ourLastEvent = Interlocked.Read(ref _lastEventTicks);
+        var since = TimeSpan.FromTicks(DateTime.UtcNow.Ticks - ourLastEvent);
 
         if (since < silence)
+        {
+            return false;
+        }
+
+        // Le système a-t-il vu des frappes que nous avons manquées ?
+        if (!SystemSawInputAfter(ourLastEvent))
         {
             return false;
         }
@@ -193,12 +207,26 @@ internal sealed partial class KeyboardHook : IDisposable
     }
 
     /// <summary>
-    /// Injecte une touche sans effet pour rompre la séquence « Windows pressée
-    /// puis relâchée », seule condition d'ouverture du menu Démarrer.
+    /// Neutralise une touche Windows que le système a déjà reçue.
     ///
-    /// F13 n'existe sur aucun clavier physique vendu aujourd'hui : rien ne lui
-    /// est associé, et la combinaison Ctrl+Win+F13 n'est revendiquée par
-    /// aucune application connue.
+    /// <para>Deux problèmes distincts, réglés par la même séquence.</para>
+    ///
+    /// <para><b>Le menu Démarrer.</b> Windows l'ouvre sur une touche Windows
+    /// pressée puis relâchée sans autre touche entre les deux. F13 rompt cette
+    /// séquence : elle n'existe sur aucun clavier vendu aujourd'hui, rien ne
+    /// lui est associé.</para>
+    ///
+    /// <para><b>Le modificateur resté enfoncé.</b> Celui-là a coûté cher à
+    /// diagnostiquer. Quand l'utilisateur presse Windows <i>avant</i> l'autre
+    /// touche, l'appui a déjà été transmis au système, qui considère le
+    /// modificateur actif pour toute la durée de la dictée. L'insertion
+    /// injecte alors Ctrl+V — et Windows lit <b>Win+Ctrl+V</b>, son raccourci
+    /// d'ouverture du panneau de sortie audio. Le panneau apparaît, vole le
+    /// focus, et le texte transcrit se perd. On relâche donc explicitement les
+    /// touches Windows après F13.</para>
+    ///
+    /// <para>L'ordre importe : F13 d'abord, sinon le relâchement injecté
+    /// ouvrirait précisément le menu Démarrer qu'on cherche à éviter.</para>
     /// </summary>
     private static void SendNeutralKey()
     {
@@ -206,6 +234,8 @@ internal sealed partial class KeyboardHook : IDisposable
         [
             NewKeyboardInput(VirtualKeys.F13, keyUp: false),
             NewKeyboardInput(VirtualKeys.F13, keyUp: true),
+            NewKeyboardInput(VirtualKeys.LeftWindows, keyUp: true),
+            NewKeyboardInput(VirtualKeys.RightWindows, keyUp: true),
         ];
 
         SendInput((uint)inputs.Length, ref MemoryMarshal.GetReference(inputs), Marshal.SizeOf<Input>());
@@ -240,6 +270,39 @@ internal sealed partial class KeyboardHook : IDisposable
             _hook = 0;
         }
     }
+
+    /// <summary>
+    /// Vrai si Windows a enregistré une saisie utilisateur postérieure à la
+    /// date fournie. Le système compte en millisecondes depuis son démarrage,
+    /// d'où la conversion.
+    /// </summary>
+    private static bool SystemSawInputAfter(long ticks)
+    {
+        var info = new LastInputInfo { Size = (uint)Marshal.SizeOf<LastInputInfo>() };
+
+        if (!GetLastInputInfo(ref info))
+        {
+            // Sans information, on préfère réinstaller : un hook mort coûte
+            // plus cher qu'une réinstallation inutile.
+            return true;
+        }
+
+        long idleMilliseconds = Environment.TickCount64 - info.LastInputTick;
+        long systemLastInputTicks = DateTime.UtcNow.Ticks - (idleMilliseconds * TimeSpan.TicksPerMillisecond);
+
+        return systemLastInputTicks > ticks;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LastInputInfo
+    {
+        public uint Size;
+        public uint LastInputTick;
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetLastInputInfo(ref LastInputInfo info);
 
     private delegate nint HookProc(int code, nint message, nint data);
 

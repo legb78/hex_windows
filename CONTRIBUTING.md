@@ -1,41 +1,39 @@
-# Contribuer à HexWin
+# Contributing to HexWin
 
-Merci de l'intérêt porté au projet. Ce document décrit ce qu'il faut savoir
-avant d'ouvrir une *pull request*.
+Thanks for the interest. This is what to know before opening a pull request.
 
-## Mettre en place l'environnement
+## Setting up
 
-Il faut le **SDK .NET 9** et Windows : la cible `net9.0-windows` utilise
-Windows Forms et l'API Win32, le projet ne compile pas ailleurs.
+You need the **.NET 9 SDK** and Windows. The `net9.0-windows` target uses
+Windows Forms and the Win32 API, so the project does not build anywhere else.
 
 ```powershell
-.\scripts\get-model.ps1     # modèle de reconnaissance, ~480 Mo
+.\scripts\get-model.ps1     # recognition model, about 480 MB
 dotnet build -c Release
 dotnet test
 ```
 
-## Le découpage du code, et pourquoi il est ainsi
+## How the code is split, and why
 
-L'architecture sépare deux couches, pour une raison de testabilité.
+The architecture separates two layers, for testability.
 
-**Les coquilles Windows** — `KeyboardHook`, `AudioRecorder`, `ParakeetEngine`,
-`TextInjector` — branchent des API système et ne décident rien. Elles ne sont
-pas testables en automatique : un serveur d'intégration continue n'a ni micro,
-ni session interactive, et Windows marque comme telles les frappes injectées
-par un programme, que le hook ignore délibérément.
+**The Windows shells** — `KeyboardHook`, `AudioRecorder`, `ParakeetEngine`,
+`TextInjector` — wire up system APIs and decide nothing. They cannot be tested
+automatically: a CI runner has no microphone and no interactive session, and
+Windows marks program-generated keystrokes as injected, which the hook ignores
+on purpose.
 
-**La logique pure** — `ChordDetector`, `RecordingGuards`, `TranscriptCleaner`,
-`AppSettings`, `DictationCoordinator` — contient toutes les décisions et se
-teste sans Windows.
+**The pure logic** — `ChordDetector`, `RecordingGuards`, `TranscriptCleaner`,
+`AppSettings`, `DictationCoordinator`, `IdlePolicy` — holds every decision and
+is tested without Windows.
 
-> **Si vous ajoutez une décision, elle va dans la couche pure.** C'est là que
-> vivent les bugs coûteux : répétition automatique du clavier, relâchement de
-> touche dans le désordre, touche restée enfoncée après un verrouillage de
-> session, seconde dictée déclenchée pendant qu'une transcription tourne.
-> Chacun de ces cas est pénible à provoquer à la main, et trivial à décrire
-> en test.
+> **If you add a decision, it belongs in the pure layer.** That is where the
+> expensive bugs live: keyboard auto-repeat, keys released out of order, a key
+> left stuck after a session lock, a second dictation triggered while one is
+> still transcribing. Each of those is painful to reproduce by hand and trivial
+> to describe as a test.
 
-## Les tests
+## Tests
 
 ```powershell
 dotnet test                                  # everything
@@ -44,67 +42,74 @@ dotnet test --filter Category=Integration    # the engine ones only
 
 The integration tests load the real engine. Without the model on disk they
 **skip themselves with a message** rather than fail, so a fresh clone gives a
-green run: no one has to tell real failures apart from a missing 578 MB
+green run: nobody has to tell real failures apart from a missing 578 MB
 download. Fetch the model and they run for real.
 
 CI excludes them up front — a runner has no reason to spend minutes discovering
 they would skip.
 
-Un test doit expliquer **pourquoi** le cas compte, pas seulement ce qu'il
-vérifie. Un commentaire d'une ligne rappelant la situation réelle qu'il couvre
-vaut mieux qu'un nom à rallonge.
+A test should explain **why** the case matters, not only what it checks. One
+line recalling the real situation it covers is worth more than a long name.
 
-## Vérifier ce qui n'est pas testable
+## Verifying what cannot be tested
 
-Toute modification touchant au clavier, au micro, à l'insertion ou à la barre
-système demande un essai manuel. Les modes de diagnostic sont là pour ça :
+Any change touching the keyboard, the microphone, insertion or the tray needs a
+manual check. The diagnostic modes exist for that:
 
 ```powershell
-.\HexWin.exe --record test.wav     # le micro capte-t-il ?
-.\HexWin.exe --transcribe test.wav # le moteur transcrit-il ?
-.\HexWin.exe --watch-hotkey        # le raccourci se déclenche-t-il ?
-.\HexWin.exe --inject "du texte"   # l'insertion aboutit-elle ?
+.\HexWin.exe --record test.wav       # is the microphone picking anything up?
+.\HexWin.exe --transcribe test.wav   # does the engine transcribe?
+.\HexWin.exe --watch-hotkey          # does the hotkey fire?
+.\HexWin.exe --inject "some text"    # does insertion land?
 ```
 
-Décrivez dans la PR ce que vous avez essayé et ce que vous avez observé.
+Describe in the pull request what you tried and what you observed.
 
-## Le flux git
+## Git flow
 
-| Branche | Rôle |
-|---------|------|
-| `main` | Versions publiées. N'avance que depuis `develop`. |
-| `develop` | Intégration. |
+| Branch | Role |
+|--------|------|
+| `main` | Published releases. Only ever advances from `develop`. |
+| `develop` | Integration. |
 
-Une branche par changement, créée depuis `develop` et fusionnée vers `develop`.
+Both are protected: no direct pushes, no force pushes, no deletion, and a pull
+request with green CI is required. There is no bypass, for anyone.
+
+One branch per change, created from `develop` and merged back into it.
 
 ```powershell
 git checkout develop
 git pull
-git checkout -b feat/mon-sujet
+git checkout -b feat/my-topic
 gh pr create --base develop
 ```
 
-Préfixes : `feat/`, `fix/`, `chore/`, `ci/`, `docs/`.
+Prefixes: `feat/`, `fix/`, `chore/`, `ci/`, `docs/`.
 
-## Les messages de commit
+## Commit messages
 
-[Conventional Commits](https://www.conventionalcommits.org/fr/), en français.
+[Conventional Commits](https://www.conventionalcommits.org/), in English.
 
 ```
-feat(audio): capture du micro via NAudio
+feat(audio): capture the microphone through NAudio
 
-Le corps explique POURQUOI, pas quoi — le diff dit déjà quoi.
-Ce qui a été essayé, ce qui a échoué, la contrainte qui a imposé
-cette solution plutôt qu'une autre.
+The body explains WHY, not what — the diff already says what. What was tried,
+what failed, the constraint that forced this solution over another.
 ```
 
-## Ce que la compilation impose
+## What the build enforces
 
-`TreatWarningsAsErrors` est actif : **le moindre avertissement fait échouer la
-compilation**, en local comme en CI. Ce n'est pas négociable, c'est ce qui garde
-le code propre sans avoir à y penser.
+`TreatWarningsAsErrors` is on: **a single warning fails the build**, locally and
+in CI. This is not negotiable. It is what keeps the code clean without anyone
+having to think about it.
+
+## Releasing
+
+`Directory.Build.props` holds `<Version>` and is the single source of truth.
+Merging into `main` publishes that version and does nothing if the tag already
+exists, so releasing means bumping the number in a pull request.
 
 ## Licence
 
-En contribuant, vous acceptez que votre contribution soit distribuée sous la
-licence Apache 2.0 du projet.
+By contributing, you agree that your contribution is distributed under the
+project's Apache 2.0 licence.

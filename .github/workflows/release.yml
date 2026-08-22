@@ -1,11 +1,11 @@
-name: Publication
+name: Release
 
-# Déploiement continu : toute fusion vers main publie la version inscrite dans
-# Directory.Build.props. Si l'étiquette correspondante existe déjà, le workflow
-# s'arrête sans rien faire — une fusion qui ne monte pas le numéro ne publie
-# donc rien, et le coût en minutes reste celui d'une lecture de fichier.
+# Continuous deployment: any merge into main publishes the version declared in
+# Directory.Build.props. If the matching tag already exists the workflow stops
+# without doing anything, so a merge that does not bump the number publishes
+# nothing and costs no more than reading a file.
 #
-# Publier revient ainsi à monter <Version> dans une PR vers main.
+# Releasing therefore comes down to bumping <Version> in a pull request.
 
 on:
   push:
@@ -16,68 +16,68 @@ permissions:
   contents: write
 
 jobs:
-  verifier:
-    name: Version à publier ?
+  check:
+    name: Anything to publish?
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      version: ${{ steps.lecture.outputs.version }}
-      publier: ${{ steps.controle.outputs.publier }}
+      version: ${{ steps.read.outputs.version }}
+      publish: ${{ steps.decide.outputs.publish }}
 
     steps:
-      - name: Récupération du code
+      - name: Check out the code
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      # Cette étape tourne sur Linux : lire un fichier XML ne justifie pas un
-      # runner Windows, facturé le double.
-      - name: Lecture de la version
-        id: lecture
+      # This job runs on Linux: reading one XML file does not justify a Windows
+      # runner, billed at double the rate.
+      - name: Read the version
+        id: read
         run: |
           version=$(grep -oPm1 '(?<=<Version>)[^<]+' Directory.Build.props)
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Version déclarée : $version"
+          echo "Declared version: $version"
 
-      - name: L'étiquette existe-t-elle déjà ?
-        id: controle
+      - name: Does the tag already exist?
+        id: decide
         run: |
-          if git rev-parse "v${{ steps.lecture.outputs.version }}" >/dev/null 2>&1; then
-            echo "publier=false" >> "$GITHUB_OUTPUT"
-            echo "v${{ steps.lecture.outputs.version }} est déjà publiée, rien à faire."
+          if git rev-parse "v${{ steps.read.outputs.version }}" >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "v${{ steps.read.outputs.version }} is already published, nothing to do."
           else
-            echo "publier=true" >> "$GITHUB_OUTPUT"
-            echo "v${{ steps.lecture.outputs.version }} est nouvelle, publication."
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "v${{ steps.read.outputs.version }} is new, publishing."
           fi
 
-  publier:
-    name: Exécutable autonome
-    needs: verifier
-    if: needs.verifier.outputs.publier == 'true'
+  publish:
+    name: Self-contained executable
+    needs: check
+    if: needs.check.outputs.publish == 'true'
     runs-on: windows-latest
     timeout-minutes: 25
 
     steps:
-      - name: Récupération du code
+      - name: Check out the code
         uses: actions/checkout@v7
 
-      - name: Installation du SDK .NET
+      - name: Install the .NET SDK
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '9.0.x'
 
       # The one place re-running the tests earns its keep: it guards the
-      # artifact strangers will download. Branch protection is unavailable on a
-      # private repository under the free plan, so nothing technically prevents
-      # a direct push to main — this step is the last net before publishing. A
-      # failure here means no release, which beats shipping a broken one.
+      # artifact strangers will download. Nothing technically prevents a direct
+      # push to main from an account allowed to bypass the rules, so this step
+      # is the last net before publishing. A failure here means no release,
+      # which beats shipping a broken one.
       - name: Unit tests
         run: dotnet test -c Release --filter "Category!=Integration"
 
-      # Autonome et en fichier unique : l'utilisateur n'a rien à installer,
-      # pas même le runtime .NET. Les bibliothèques natives de sherpa-onnx
-      # sont embarquées et extraites au premier lancement.
-      - name: Publication
+      # Self-contained and single-file: the user installs nothing, not even the
+      # .NET runtime. The sherpa-onnx native libraries are embedded and
+      # extracted on first run.
+      - name: Publish
         run: >
           dotnet publish src/HexWin/HexWin.csproj
           -c Release -r win-x64 --self-contained true
@@ -86,7 +86,7 @@ jobs:
           -p:DebugType=none
           -o publish
 
-      - name: Assemblage de l'archive
+      - name: Assemble the archive
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path package | Out-Null
@@ -96,22 +96,25 @@ jobs:
           Copy-Item README.md, LICENSE, NOTICE package/
           Compress-Archive -Path package/* -DestinationPath HexWin-win-x64.zip
 
-      - name: Création de la publication
+      - name: Create the release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: v${{ needs.verifier.outputs.version }}
-          name: HexWin v${{ needs.verifier.outputs.version }}
+          tag_name: v${{ needs.check.outputs.version }}
+          name: HexWin v${{ needs.check.outputs.version }}
           files: HexWin-win-x64.zip
           generate_release_notes: true
           body: |
-            ## Installation
+            ## Install
 
-            1. Décompressez l'archive où vous voulez.
-            2. Ouvrez PowerShell dans le dossier et lancez `.\get-model.ps1`
-               pour télécharger le modèle (environ 480 Mo).
-            3. Double-cliquez sur `HexWin.exe`.
+            1. Unzip the archive wherever you like.
+            2. Open PowerShell in that folder and run `.\get-model.ps1` to
+               download the recognition model (about 480 MB).
+            3. Double-click `HexWin.exe`.
 
-            L'icône apparaît en gris le temps du chargement, puis passe au
-            bleu. Maintenez alors `Ctrl` + `Windows`, parlez, relâchez.
+            The tray icon starts grey while the model is checked, then turns
+            blue. Hold `Ctrl` + `Windows`, speak, release.
 
-            Aucune installation de .NET n'est nécessaire : tout est embarqué.
+            No .NET installation is required: everything is bundled.
+
+            Windows will warn on first run, since the executable is not
+            code-signed. Click **More info**, then **Run anyway**.

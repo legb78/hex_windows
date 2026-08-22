@@ -4,15 +4,15 @@ using Xunit;
 namespace HexWin.Tests.Configuration;
 
 /// <summary>
-/// La règle vérifiée ici de bout en bout : aucune entrée, si abîmée soit-elle,
-/// ne doit empêcher l'application de démarrer avec une configuration utilisable.
+/// The rule checked end to end here: no input, however damaged, may stop the
+/// application from starting with a usable configuration.
 /// </summary>
 public class AppSettingsTests
 {
     private const string DefaultModel = "models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8";
 
     [Fact]
-    public void Un_json_vide_rend_les_valeurs_par_defaut()
+    public void An_empty_json_gives_the_default_values()
     {
         AppSettings settings = AppSettings.Parse("{}");
 
@@ -26,10 +26,10 @@ public class AppSettingsTests
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    [InlineData("pas du json")]
-    [InlineData("{ceci n'est pas valide}")]
+    [InlineData("not json at all")]
+    [InlineData("{this is not valid}")]
     [InlineData("[1, 2, 3]")]
-    public void Un_json_illisible_rend_les_valeurs_par_defaut(string json)
+    public void An_unreadable_json_gives_the_default_values(string json)
     {
         AppSettings settings = AppSettings.Parse(json);
 
@@ -38,24 +38,24 @@ public class AppSettingsTests
     }
 
     [Fact]
-    public void Les_cles_inconnues_sont_ignorees()
+    public void Unknown_keys_are_ignored()
     {
-        // Une clé restée d'une version précédente ne doit pas tout faire
-        // échouer. « language » en est un cas réel : le réglage existait au
-        // temps de Whisper, Parakeet détecte seul la langue parlée.
+        // A key left over from an earlier version must not fail everything.
+        // "language" is a real case: the setting existed in the Whisper era,
+        // and Parakeet detects the spoken language by itself.
         AppSettings settings = AppSettings.Parse(
             """{"provider": "cpu", "language": "fr", "runtimePreference": ["Vulkan"]}""");
 
         Assert.Equal("cpu", settings.Provider);
     }
 
-    // --- Fournisseur de calcul ------------------------------------------------
+    // --- Compute provider -----------------------------------------------------
 
     [Theory]
     [InlineData("cpu", "cpu")]
     [InlineData("CPU", "cpu")]
     [InlineData("  Cpu  ", "cpu")]
-    public void Le_processeur_est_reconnu_quelle_que_soit_la_casse(string written, string expected)
+    public void The_processor_is_recognised_whatever_the_case(string written, string expected)
     {
         AppSettings settings = AppSettings.Parse($$"""{"provider": "{{written}}"}""");
 
@@ -65,13 +65,13 @@ public class AppSettingsTests
     [Theory]
     [InlineData("directml")]
     [InlineData("cuda")]
-    public void Les_fournisseurs_GPU_sont_refuses_car_indisponibles(string provider)
+    public void The_GPU_providers_are_refused_as_unavailable(string provider)
     {
-        // Retirés après essai : sherpa-onnx les acceptait, affichait un
-        // avertissement sur sa sortie native, puis retombait sur le
-        // processeur. Le réglage promettait une accélération inatteignable
-        // sans que rien ne le signale. Les paquets NuGet de sherpa-onnx ne
-        // sont compilés que pour le processeur.
+        // Removed after testing: sherpa-onnx accepted them, printed a warning
+        // on its native output, then fell back to the processor. The setting
+        // promised an acceleration that could never happen, with nothing
+        // saying so. The sherpa-onnx NuGet packages are built for the
+        // processor alone.
         AppSettings settings = AppSettings.Parse($$"""{"provider": "{{provider}}"}""");
 
         Assert.Equal("cpu", settings.Provider);
@@ -82,56 +82,56 @@ public class AppSettingsTests
     [InlineData("metal")]
     [InlineData("")]
     [InlineData("   ")]
-    public void Un_fournisseur_inconnu_repli_sur_le_processeur(string provider)
+    public void An_unknown_provider_falls_back_to_the_processor(string provider)
     {
         AppSettings settings = AppSettings.Parse($$"""{"provider": "{{provider}}"}""");
 
         Assert.Equal("cpu", settings.Provider);
     }
 
-    // --- Fils d'exécution -----------------------------------------------------
+    // --- Threads --------------------------------------------------------------
 
     [Theory]
     [InlineData(-4, 1)]
     [InlineData(0, 1)]
     [InlineData(4, 4)]
     [InlineData(1_000, 32)]
-    public void Le_nombre_de_fils_est_ramene_dans_ses_bornes(int written, int expected)
+    public void The_thread_count_is_brought_back_within_bounds(int written, int expected)
     {
-        // Zéro fil bloquerait le décodage ; mille saturerait la machine sans
-        // rien accélérer, le modèle étant petit.
+        // Zero threads would stall decoding; a thousand would saturate the
+        // machine while speeding nothing up, the model being small.
         AppSettings settings = AppSettings.Parse($$"""{"threads": {{written}}}""");
 
         Assert.Equal(expected, settings.Threads);
     }
 
-    // --- Raccourci ------------------------------------------------------------
+    // --- Shortcut -------------------------------------------------------------
 
     [Fact]
-    public void La_touche_Fn_est_refusee_et_repli_sur_le_defaut()
+    public void The_Fn_key_is_refused_and_falls_back_to_the_default()
     {
-        // Fn est gérée par le contrôleur embarqué du clavier : elle n'émet
-        // aucun code que Windows puisse observer. L'accepter donnerait un
-        // raccourci qui ne se déclenche jamais, sans le moindre message.
+        // Fn is handled by the embedded controller of the keyboard: it emits
+        // no code Windows can observe. Accepting it would give a shortcut that
+        // never fires, without a single message.
         AppSettings settings = AppSettings.Parse("""{"hotkey": ["Ctrl", "Fn"]}""");
 
         Assert.Equal(["Ctrl", "Win"], settings.Hotkey);
     }
 
     [Fact]
-    public void Une_touche_inconnue_invalide_le_raccourci_entier()
+    public void An_unknown_key_invalidates_the_whole_shortcut()
     {
-        // Retirer la touche fautive élargirait la combinaison au lieu de la
-        // restreindre : ["CapsLock", "Inconnue"] deviendrait ["CapsLock"] et
-        // la dictée partirait au moindre appui sur Verr Maj. Le repli sur le
-        // défaut est le seul comportement qui ne surprend pas.
-        AppSettings settings = AppSettings.Parse("""{"hotkey": ["CapsLock", "Inconnue"]}""");
+        // Dropping the offending key would widen the combination instead of
+        // narrowing it: ["CapsLock", "Unknown"] would become ["CapsLock"] and
+        // dictation would fire on the slightest press of Caps Lock. Falling
+        // back to the default is the only behaviour that does not surprise.
+        AppSettings settings = AppSettings.Parse("""{"hotkey": ["CapsLock", "Unknown"]}""");
 
         Assert.Equal(["Ctrl", "Win"], settings.Hotkey);
     }
 
     [Fact]
-    public void Un_raccourci_entierement_valide_est_conserve()
+    public void A_fully_valid_shortcut_is_kept()
     {
         AppSettings settings = AppSettings.Parse("""{"hotkey": ["CapsLock"]}""");
 
@@ -139,7 +139,7 @@ public class AppSettingsTests
     }
 
     [Fact]
-    public void Le_raccourci_est_reconnu_quelle_que_soit_la_casse()
+    public void The_shortcut_is_recognised_whatever_the_case()
     {
         AppSettings settings = AppSettings.Parse("""{"hotkey": ["ctrl", "WIN"]}""");
 
@@ -147,7 +147,7 @@ public class AppSettingsTests
     }
 
     [Fact]
-    public void Le_raccourci_est_dedoublonne()
+    public void The_shortcut_is_deduplicated()
     {
         AppSettings settings = AppSettings.Parse("""{"hotkey": ["Ctrl", "ctrl", "Win"]}""");
 
@@ -157,23 +157,23 @@ public class AppSettingsTests
     [Theory]
     [InlineData("""{"hotkey": []}""")]
     [InlineData("""{"hotkey": null}""")]
-    public void Un_raccourci_vide_repli_sur_le_defaut(string json)
+    public void An_empty_shortcut_falls_back_to_the_default(string json)
     {
-        // Sans cette règle, l'application démarrerait sans aucun moyen de
-        // déclencher la dictée, en silence.
+        // Without this rule, the application would start with no way at all to
+        // trigger dictation, in silence.
         AppSettings settings = AppSettings.Parse(json);
 
         Assert.Equal(["Ctrl", "Win"], settings.Hotkey);
     }
 
-    // --- Durées ---------------------------------------------------------------
+    // --- Durations ------------------------------------------------------------
 
     [Theory]
     [InlineData(-100, 0)]
     [InlineData(0, 0)]
     [InlineData(250, 250)]
     [InlineData(999_999, 5_000)]
-    public void La_duree_minimale_est_ramenee_dans_ses_bornes(int written, int expected)
+    public void The_minimum_duration_is_brought_back_within_bounds(int written, int expected)
     {
         AppSettings settings = AppSettings.Parse($$"""{"minRecordingMilliseconds": {{written}}}""");
 
@@ -184,20 +184,20 @@ public class AppSettingsTests
     [InlineData(0, 5)]
     [InlineData(120, 120)]
     [InlineData(10_000, 600)]
-    public void La_duree_maximale_est_ramenee_dans_ses_bornes(int written, int expected)
+    public void The_maximum_duration_is_brought_back_within_bounds(int written, int expected)
     {
         AppSettings settings = AppSettings.Parse($$"""{"maxRecordingSeconds": {{written}}}""");
 
         Assert.Equal(expected, settings.MaxRecordingSeconds);
     }
 
-    // --- Divers ---------------------------------------------------------------
+    // --- Miscellaneous --------------------------------------------------------
 
     [Theory]
     [InlineData("""{"modelPath": ""}""")]
     [InlineData("""{"modelPath": "   "}""")]
     [InlineData("""{"modelPath": null}""")]
-    public void Un_chemin_de_modele_vide_repli_sur_le_defaut(string json)
+    public void An_empty_model_path_falls_back_to_the_default(string json)
     {
         AppSettings settings = AppSettings.Parse(json);
 
@@ -205,14 +205,14 @@ public class AppSettingsTests
     }
 
     [Fact]
-    public void Les_commentaires_sont_acceptes_dans_le_fichier()
+    public void Comments_are_accepted_in_the_file()
     {
-        // settings.json en contient : il est écrit pour être lu et modifié
-        // par quelqu'un qui ne programme pas.
+        // settings.json contains some: it is written to be read and edited by
+        // somebody who does not program.
         AppSettings settings = AppSettings.Parse(
             """
             {
-              // le raccourci
+              // the shortcut
               "hotkey": ["CapsLock"]
             }
             """);
@@ -221,11 +221,11 @@ public class AppSettingsTests
     }
 
     [Fact]
-    public void Un_aller_retour_par_le_json_conserve_les_valeurs()
+    public void A_round_trip_through_json_preserves_the_values()
     {
         var original = new AppSettings
         {
-            ModelPath = "models/autre-modele",
+            ModelPath = "models/another-model",
             Hotkey = ["CapsLock"],
             MinRecordingMilliseconds = 400,
             MaxRecordingSeconds = 60,
@@ -235,29 +235,29 @@ public class AppSettingsTests
             LogEnabled = false,
         };
 
-        AppSettings relu = AppSettings.Parse(original.ToJson());
+        AppSettings reread = AppSettings.Parse(original.ToJson());
 
-        Assert.Equal(original.ModelPath, relu.ModelPath);
-        Assert.Equal(original.Hotkey, relu.Hotkey);
-        Assert.Equal(original.MinRecordingMilliseconds, relu.MinRecordingMilliseconds);
-        Assert.Equal(original.MaxRecordingSeconds, relu.MaxRecordingSeconds);
-        Assert.Equal(original.Provider, relu.Provider);
-        Assert.Equal(original.Threads, relu.Threads);
-        Assert.Equal(original.Insertion, relu.Insertion);
-        Assert.False(relu.LogEnabled);
+        Assert.Equal(original.ModelPath, reread.ModelPath);
+        Assert.Equal(original.Hotkey, reread.Hotkey);
+        Assert.Equal(original.MinRecordingMilliseconds, reread.MinRecordingMilliseconds);
+        Assert.Equal(original.MaxRecordingSeconds, reread.MaxRecordingSeconds);
+        Assert.Equal(original.Provider, reread.Provider);
+        Assert.Equal(original.Threads, reread.Threads);
+        Assert.Equal(original.Insertion, reread.Insertion);
+        Assert.False(reread.LogEnabled);
     }
 
     [Fact]
-    public void Le_mode_d_insertion_est_ecrit_en_toutes_lettres()
+    public void The_insertion_mode_is_written_out_in_words()
     {
-        // Pour rester lisible dans settings.json, plutôt qu'un entier opaque.
+        // To stay readable in settings.json, rather than an opaque integer.
         string json = new AppSettings { Insertion = InsertionMode.Type }.ToJson();
 
         Assert.Contains("\"Type\"", json, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Un_fichier_absent_rend_les_valeurs_par_defaut()
+    public void A_missing_file_gives_the_default_values()
     {
         string absent = Path.Combine(Path.GetTempPath(), $"hexwin-{Guid.NewGuid():N}.json");
 
@@ -267,7 +267,7 @@ public class AppSettingsTests
     }
 
     [Fact]
-    public void Un_fichier_present_est_relu_correctement()
+    public void A_file_that_is_present_is_read_back_correctly()
     {
         string path = Path.Combine(Path.GetTempPath(), $"hexwin-{Guid.NewGuid():N}.json");
         File.WriteAllText(path, """{"threads": 8, "hotkey": ["CapsLock"]}""");

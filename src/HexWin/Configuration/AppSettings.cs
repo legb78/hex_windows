@@ -4,75 +4,78 @@ using System.Text.Json.Serialization;
 namespace HexWin.Configuration;
 
 /// <summary>
-/// Comment le texte transcrit est remis à l'application active.
+/// How the transcribed text is handed back to the active application.
 /// </summary>
 public enum InsertionMode
 {
-    /// <summary>Presse-papiers puis Ctrl+V. Instantané, même sur un long texte.</summary>
+    /// <summary>Clipboard then Ctrl+V. Instant, even on a long text.</summary>
     Paste,
 
-    /// <summary>Frappe simulée caractère par caractère. Plus lent, mais passe
-    /// dans les rares applications qui ignorent le collage.</summary>
+    /// <summary>Simulated typing, character by character. Slower, but it gets
+    /// through in the rare applications that ignore pasting.</summary>
     Type,
 }
 
 /// <summary>
-/// Configuration utilisateur, lue depuis settings.json à côté de l'exécutable.
+/// User configuration, read from settings.json next to the executable.
 ///
-/// Toute la logique de cette classe est pure : <see cref="Parse"/> et
-/// <see cref="Normalize"/> ne touchent pas au disque, ce qui les rend
-/// entièrement testables. Seul <see cref="Load"/> fait des entrées-sorties.
+/// All the logic in this class is pure: <see cref="Parse"/> and
+/// <see cref="Normalize"/> never touch the disk, which makes them entirely
+/// testable. Only <see cref="Load"/> does any I/O.
 ///
-/// Le principe est qu'un fichier abîmé ne doit jamais empêcher l'application
-/// de démarrer : toute valeur invalide est remplacée par son défaut plutôt
-/// que de lever une exception.
+/// The principle is that a damaged file must never stop the application from
+/// starting: any invalid value is replaced by its default rather than raising
+/// an exception.
 /// </summary>
 public sealed class AppSettings
 {
     public const string FileName = "settings.json";
 
     /// <summary>
-    /// Dossier du modèle Parakeet, relatif à l'exécutable. C'est un dossier et
-    /// non un fichier : le modèle se compose d'un encodeur, d'un décodeur,
-    /// d'un joiner et d'un vocabulaire.
+    /// Folder of the Parakeet model, relative to the executable. A folder and
+    /// not a file: the model is made of an encoder, a decoder, a joiner and a
+    /// vocabulary.
     /// </summary>
     public string ModelPath { get; set; } = DefaultModelPath;
 
-    /// <summary>Touches à maintenir pour dicter.</summary>
+    /// <summary>Keys to hold down to dictate.</summary>
     public string[] Hotkey { get; set; } = ["Ctrl", "Win"];
 
-    /// <summary>En deçà, l'appui est considéré comme accidentel et ignoré.</summary>
+    /// <summary>Below this, the press counts as accidental and is ignored.</summary>
     public int MinRecordingMilliseconds { get; set; } = 250;
 
-    /// <summary>Coupe l'enregistrement si la touche reste enfoncée.</summary>
+    /// <summary>Cuts the recording off if the key stays held down.</summary>
     public int MaxRecordingSeconds { get; set; } = 120;
 
-    /// <summary>Fournisseur de calcul ONNX Runtime : cpu, directml ou cuda.</summary>
+    /// <summary>
+    /// ONNX Runtime compute provider. Only "cpu" is accepted; see
+    /// <see cref="KnownProviders"/> for why the GPU ones were removed.
+    /// </summary>
     public string Provider { get; set; } = DefaultProvider;
 
     /// <summary>
-    /// Fils d'exécution alloués au décodage. Au-delà d'une poignée, le gain
-    /// s'effondre : le modèle est petit et la synchronisation coûte plus que
-    /// le parallélisme n'apporte.
+    /// Threads allotted to decoding. Past a handful the gain collapses: the
+    /// model is small and synchronisation costs more than the parallelism
+    /// brings.
     /// </summary>
     public int Threads { get; set; } = DefaultThreads;
 
     /// <summary>
-    /// Minutes sans dictée au bout desquelles le modèle est libéré. Zéro le
-    /// garde résident indéfiniment.
+    /// Minutes without a dictation after which the model is released. Zero
+    /// keeps it resident forever.
     ///
-    /// Le modèle occupe environ un gigaoctet. Le libérer rend cette mémoire au
-    /// système ; la dictée suivante paie un rechargement, largement masqué
-    /// puisqu'il démarre dès l'enfoncement de la touche, pendant qu'on parle.
+    /// The model takes about a gigabyte. Releasing it hands that memory back
+    /// to the system; the next dictation pays for a reload, largely hidden
+    /// since it starts on the key press, while the user is speaking.
     /// </summary>
     public int UnloadAfterMinutes { get; set; } = DefaultUnloadAfterMinutes;
 
     public InsertionMode Insertion { get; set; } = InsertionMode.Paste;
 
-    /// <summary>Journalise les transcriptions et le moteur réellement chargé.</summary>
+    /// <summary>Logs the transcriptions and the engine actually loaded.</summary>
     public bool LogEnabled { get; set; } = true;
 
-    // --- Valeurs de référence -------------------------------------------------
+    // --- Reference values -----------------------------------------------------
 
     private const string DefaultModelPath = "models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8";
     private const string DefaultProvider = "cpu";
@@ -84,30 +87,30 @@ public sealed class AppSettings
     private static readonly string[] DefaultHotkey = ["Ctrl", "Win"];
 
     /// <summary>
-    /// Fournisseurs de calcul réellement disponibles.
+    /// Compute providers that are actually available.
     ///
-    /// <para>Le processeur est le seul, et ce n'est pas un choix : les paquets
-    /// NuGet de sherpa-onnx ne sont compilés que pour lui. Interrogé,
-    /// ONNX Runtime répond « Available providers: CPUExecutionProvider ».</para>
+    /// <para>The processor is the only one, and that is not a choice: the
+    /// sherpa-onnx NuGet packages are built for it alone. Asked directly, ONNX
+    /// Runtime answers "Available providers: CPUExecutionProvider".</para>
     ///
-    /// <para><b>« directml » et « cuda » ont été retirés après essai.</b>
-    /// sherpa-onnx les acceptait, affichait un avertissement sur sa sortie
-    /// d'erreur native — « DirectML is for Windows only. Fallback to cpu! »,
-    /// message trompeur puisqu'on est justement sous Windows — puis retombait
-    /// sur le processeur. Le réglage promettait donc une accélération
-    /// inatteignable, sans que rien ne le signale à l'utilisateur.</para>
+    /// <para><b>"directml" and "cuda" were removed after testing.</b>
+    /// sherpa-onnx accepted them, printed a warning on its native error output
+    /// — "DirectML is for Windows only. Fallback to cpu!", a misleading message
+    /// given that Windows is exactly where we are — then fell back to the
+    /// processor. The setting therefore promised an acceleration that could
+    /// never happen, with nothing telling the user.</para>
     ///
-    /// <para>Exploiter un GPU demanderait de recompiler sherpa-onnx avec
-    /// -DSHERPA_ONNX_ENABLE_GPU=ON et de remplacer les bibliothèques natives.
-    /// Le gain serait de toute façon incertain : le processeur transcrit déjà
-    /// une phrase de cinq secondes en 0,17 s.</para>
+    /// <para>Using a GPU would mean rebuilding sherpa-onnx with
+    /// -DSHERPA_ONNX_ENABLE_GPU=ON and swapping the native libraries. The gain
+    /// would be uncertain anyway: the processor already transcribes a
+    /// five-second sentence in 0.17 s.</para>
     /// </summary>
     private static readonly string[] KnownProviders = ["cpu"];
 
     /// <summary>
-    /// Touches admises dans un raccourci. Volontairement restreint : la touche
-    /// Fn n'y figure pas car elle est gérée par le contrôleur embarqué du
-    /// clavier et n'émet aucun code visible par Windows.
+    /// Keys allowed in a shortcut. Deliberately narrow: the Fn key is absent
+    /// because it is handled by the embedded controller of the keyboard and
+    /// emits no code Windows can see.
     /// </summary>
     private static readonly string[] KnownHotkeyNames =
     [
@@ -129,12 +132,12 @@ public sealed class AppSettings
         Converters = { new JsonStringEnumConverter() },
     };
 
-    // --- Lecture --------------------------------------------------------------
+    // --- Reading --------------------------------------------------------------
 
     /// <summary>
-    /// Lit le fichier s'il existe, sinon rend les valeurs par défaut. Un fichier
-    /// illisible ou mal formé donne également les valeurs par défaut : la
-    /// dictée doit continuer de fonctionner même si la configuration est cassée.
+    /// Reads the file if it exists, otherwise returns the defaults. An
+    /// unreadable or malformed file also yields the defaults: dictation must
+    /// keep working even when the configuration is broken.
     /// </summary>
     public static AppSettings Load(string path)
     {
@@ -158,9 +161,9 @@ public sealed class AppSettings
     }
 
     /// <summary>
-    /// Construit une configuration valide à partir de JSON. Les clés inconnues
-    /// sont ignorées, les valeurs invalides remplacées par leur défaut, et un
-    /// JSON illisible rend simplement la configuration par défaut.
+    /// Builds a valid configuration from JSON. Unknown keys are ignored,
+    /// invalid values are replaced by their default, and unreadable JSON
+    /// simply yields the default configuration.
     /// </summary>
     public static AppSettings Parse(string json)
     {
@@ -185,7 +188,7 @@ public sealed class AppSettings
     // --- Validation -----------------------------------------------------------
 
     /// <summary>
-    /// Répare en place toute valeur hors domaine. Appelée après chaque lecture.
+    /// Repairs any out-of-range value in place. Called after every read.
     /// </summary>
     public void Normalize()
     {
@@ -201,7 +204,7 @@ public sealed class AppSettings
         MaxRecordingSeconds = Math.Clamp(MaxRecordingSeconds, 5, 600);
         Threads = Math.Clamp(Threads, 1, MaxThreads);
 
-        // Zéro reste autorisé : c'est ainsi qu'on garde le modèle résident.
+        // Zero stays allowed: that is how the model is kept resident.
         UnloadAfterMinutes = Math.Clamp(UnloadAfterMinutes, 0, MaxUnloadAfterMinutes);
 
         if (!Enum.IsDefined(Insertion))
@@ -215,8 +218,8 @@ public sealed class AppSettings
         string? match = KnownProviders.FirstOrDefault(
             known => string.Equals(known, provider?.Trim(), StringComparison.OrdinalIgnoreCase));
 
-        // Le processeur est toujours disponible : c'est le seul repli qui ne
-        // puisse pas laisser l'application sans moyen de transcrire.
+        // The processor is always available: it is the only fallback that
+        // cannot leave the application with no way to transcribe.
         return match ?? DefaultProvider;
     }
 
@@ -229,11 +232,11 @@ public sealed class AppSettings
 
         string?[] canonical = [.. hotkey.Select(CanonicalHotkeyName)];
 
-        // Une touche inconnue invalide le raccourci entier, elle n'est jamais
-        // simplement retirée. Retirer une touche ÉLARGIT la combinaison au
-        // lieu de la restreindre : ["Ctrl", "Fn"] deviendrait ["Ctrl"], et la
-        // dictée se déclencherait à chaque appui sur Ctrl. Mieux vaut revenir
-        // au défaut connu que produire un raccourci plus permissif que voulu.
+        // An unknown key invalidates the whole shortcut; it is never simply
+        // dropped. Dropping a key WIDENS the combination instead of narrowing
+        // it: ["Ctrl", "Fn"] would become ["Ctrl"], and dictation would fire on
+        // every press of Ctrl. Falling back to the known default beats
+        // producing a shortcut more permissive than intended.
         if (canonical.Any(name => name is null))
         {
             return [.. DefaultHotkey];

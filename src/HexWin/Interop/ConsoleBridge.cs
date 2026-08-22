@@ -5,23 +5,22 @@ using System.Text;
 namespace HexWin.Interop;
 
 /// <summary>
-/// Rend une sortie console utilisable depuis une application compilée en
-/// WinExe.
+/// Makes console output usable from an application built as WinExe.
 ///
-/// HexWin vit dans la barre système : il est compilé sans console, sinon une
-/// fenêtre noire s'ouvrirait à chaque lancement. Mais le mode de diagnostic
-/// en ligne de commande doit tout de même pouvoir écrire quelque part. On se
-/// rattache donc à la console du terminal appelant.
+/// HexWin lives in the system tray: it is built without a console, otherwise a
+/// black window would open on every launch. But the command-line diagnostic
+/// mode still has to write somewhere. So we attach to the console of the
+/// calling terminal.
 /// </summary>
-[ExcludeFromCodeCoverage(Justification = "Coquille Win32 : se rattache à la console du processus appelant.")]
+[ExcludeFromCodeCoverage(Justification = "Win32 shell: attaches to the console of the calling process.")]
 internal static partial class ConsoleBridge
 {
-    /// <summary>Valeur conventionnelle désignant le processus parent.</summary>
+    /// <summary>Conventional value standing for the parent process.</summary>
     private const uint AttachParentProcess = 0xFFFFFFFF;
 
     /// <summary>
-    /// Se rattache à la console appelante, ou en crée une si le programme a
-    /// été lancé sans terminal (double-clic).
+    /// Attaches to the calling console, or creates one if the program was
+    /// started without a terminal (a double-click).
     /// </summary>
     public static void Attach()
     {
@@ -30,22 +29,22 @@ internal static partial class ConsoleBridge
             return;
         }
 
-        // cmd.exe démarre en codepage 850 sur une installation française :
-        // les accents s'y affichent comme « d├®but ». Basculer la console en
-        // UTF-8 est la seule façon d'obtenir un texte lisible, et il en faut
-        // pour des messages écrits en français.
+        // cmd.exe starts in codepage 850 on a French installation, where
+        // accents show up as "d├®but". Switching the console to UTF-8 is the
+        // only way to get readable text, and readable text is needed for
+        // messages written in French.
         try
         {
             Console.OutputEncoding = Encoding.UTF8;
         }
         catch (IOException)
         {
-            // Sortie redirigée vers un fichier ou un tube : l'encodage de la
-            // console n'a alors plus de sens, et l'échec est sans conséquence.
+            // Output redirected to a file or a pipe: the console encoding no
+            // longer means anything, and the failure has no consequence.
         }
 
-        // Après rattachement, les flux standard pointent encore dans le vide :
-        // ils ont été initialisés alors qu'aucune console n'existait.
+        // After attaching, the standard streams still point into the void:
+        // they were initialised while no console existed.
         var output = new StreamWriter(Console.OpenStandardOutput(), Encoding.UTF8) { AutoFlush = true };
         Console.SetOut(output);
 

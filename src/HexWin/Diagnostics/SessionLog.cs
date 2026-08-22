@@ -4,17 +4,17 @@ using System.Globalization;
 namespace HexWin.Diagnostics;
 
 /// <summary>
-/// Journal d'exploitation, écrit à côté des données applicatives de
-/// l'utilisateur.
+/// Operational log, written next to the application data of the user.
 ///
-/// Sans trace, une dictée qui n'insère rien est indiagnosticable : on ne sait
-/// pas si le micro n'a rien capté, si le moteur n'a rien reconnu, ou si
-/// l'insertion a échoué. Une ligne par dictée suffit à trancher.
+/// With no trace, a dictation that inserts nothing cannot be diagnosed: there
+/// is no telling whether the microphone caught nothing, the engine recognised
+/// nothing, or the insertion failed. One line per dictation is enough to
+/// settle it.
 ///
-/// L'écriture ne doit jamais faire échouer une dictée par ailleurs réussie :
-/// toute erreur d'entrée-sortie est absorbée.
+/// Writing must never fail an otherwise successful dictation: every I/O error
+/// is absorbed.
 /// </summary>
-[ExcludeFromCodeCoverage(Justification = "Écrit dans le dossier de données de l'utilisateur.")]
+[ExcludeFromCodeCoverage(Justification = "Writes into the data folder of the user.")]
 public sealed class SessionLog
 {
     private readonly string? _path;
@@ -22,7 +22,7 @@ public sealed class SessionLog
 
     private SessionLog(string? path) => _path = path;
 
-    /// <summary>Chemin du dossier contenant le journal, même désactivé.</summary>
+    /// <summary>Path of the folder holding the log, even when disabled.</summary>
     public static string Directory { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "HexWin");
@@ -69,11 +69,11 @@ public sealed class SessionLog
         }
         catch (IOException)
         {
-            // Disque plein ou fichier verrouillé : la dictée prime.
+            // Disk full or file locked: the dictation takes priority.
         }
         catch (UnauthorizedAccessException)
         {
-            // Idem.
+            // Same again.
         }
     }
 }

@@ -14,8 +14,13 @@ on:
       - '**.md'
       - 'docs/**'
       - '.gitignore'
+  # Pushes to main deliberately do NOT run here. A commit reaching main comes
+  # from develop and was already validated by its pull request, and the release
+  # workflow re-runs the tests before publishing. Keeping this trigger meant
+  # three Windows test runs of the same commit for a single release — billed at
+  # double rate on a private repository.
   push:
-    branches: [main, develop]
+    branches: [develop]
     paths-ignore:
       - '**.md'
       - 'docs/**'

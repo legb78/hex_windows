@@ -66,10 +66,12 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
-      # Filet de sécurité : main ne devrait recevoir que du code déjà validé,
-      # mais publier sans repasser les tests reviendrait à s'en remettre à la
-      # discipline seule.
-      - name: Tests unitaires
+      # The one place re-running the tests earns its keep: it guards the
+      # artifact strangers will download. Branch protection is unavailable on a
+      # private repository under the free plan, so nothing technically prevents
+      # a direct push to main — this step is the last net before publishing. A
+      # failure here means no release, which beats shipping a broken one.
+      - name: Unit tests
         run: dotnet test -c Release --filter "Category!=Integration"
 
       # Autonome et en fichier unique : l'utilisateur n'a rien à installer,

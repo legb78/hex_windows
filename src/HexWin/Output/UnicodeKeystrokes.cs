@@ -1,35 +1,33 @@
 namespace HexWin.Output;
 
-/// <summary>Une frappe unitaire à injecter : un caractère UTF-16, enfoncé ou relâché.</summary>
-/// <param name="Unit">Unité de code UTF-16 envoyée telle quelle à Windows.</param>
-/// <param name="IsKeyUp">Vrai pour le relâchement.</param>
+/// <summary>A single keystroke to inject: one UTF-16 character, down or up.</summary>
+/// <param name="Unit">UTF-16 code unit sent to Windows as-is.</param>
+/// <param name="IsKeyUp">True for the release.</param>
 public readonly record struct Keystroke(ushort Unit, bool IsKeyUp);
 
 /// <summary>
-/// Traduit un texte en frappes clavier simulées.
+/// Turns text into simulated keystrokes.
 ///
-/// Le mode de repli quand le collage ne passe pas : certaines applications
-/// — terminaux, machines virtuelles, jeux — ignorent le presse-papiers mais
-/// acceptent les frappes.
+/// The fallback for when pasting does not get through: some applications —
+/// terminals, virtual machines, games — ignore the clipboard but accept
+/// keystrokes.
 ///
-/// L'envoi se fait en Unicode plutôt qu'en codes de touches : cela évite
-/// complètement la question de la disposition du clavier. Sur un clavier
-/// français, « a » et « q » ne sont pas là où un programme les attendrait, et
-/// « é » n'a aucun code de touche sur un clavier américain. En envoyant
-/// directement l'unité de code, le caractère arrive quelle que soit la
-/// disposition active.
+/// Sending happens in Unicode rather than in key codes, which sidesteps the
+/// keyboard layout question entirely. On a French keyboard, "a" and "q" are
+/// not where a program would expect them, and "é" has no key code at all on a
+/// US keyboard. Sending the code unit directly makes the character arrive
+/// whatever layout is active.
 ///
-/// Logique pure, donc testable sans toucher au clavier.
+/// Pure logic, so testable without touching the keyboard.
 /// </summary>
 public static class UnicodeKeystrokes
 {
     /// <summary>
-    /// Construit la suite de frappes correspondant au texte.
+    /// Builds the sequence of keystrokes matching the text.
     ///
-    /// Chaque caractère donne deux frappes — enfoncement puis relâchement.
-    /// Les caractères hors du plan multilingue de base, émojis compris,
-    /// occupent deux unités UTF-16 qui doivent être envoyées séparément :
-    /// Windows les recompose de lui-même.
+    /// Each character yields two keystrokes — press then release. Characters
+    /// outside the basic multilingual plane, emoji included, take two UTF-16
+    /// units that must be sent separately: Windows recombines them by itself.
     /// </summary>
     public static Keystroke[] Build(string? text)
     {
@@ -42,8 +40,8 @@ public static class UnicodeKeystrokes
 
         foreach (char unit in text)
         {
-            // Les fins de ligne demandent la touche Entrée, pas un caractère :
-            // envoyées en Unicode, elles n'insèrent rien du tout.
+            // Line endings need the Enter key, not a character: sent as
+            // Unicode, they insert nothing at all.
             if (unit == '\n')
             {
                 strokes.Add(new Keystroke(Return, IsKeyUp: false));
@@ -51,8 +49,8 @@ public static class UnicodeKeystrokes
                 continue;
             }
 
-            // Le retour chariot d'une fin de ligne Windows est ignoré : le
-            // saut est déjà produit par le caractère de nouvelle ligne.
+            // The carriage return of a Windows line ending is skipped: the
+            // break is already produced by the newline character.
             if (unit == '\r')
             {
                 continue;
@@ -66,11 +64,11 @@ public static class UnicodeKeystrokes
     }
 
     /// <summary>
-    /// Code de la touche Entrée. Contrairement aux autres frappes, celle-ci
-    /// est un code de touche virtuel et non une unité de code Unicode.
+    /// Code of the Enter key. Unlike the other keystrokes, this one is a
+    /// virtual key code and not a Unicode code unit.
     /// </summary>
     public const ushort Return = 0x0D;
 
-    /// <summary>Vrai si la frappe désigne la touche Entrée plutôt qu'un caractère.</summary>
+    /// <summary>True if the keystroke means the Enter key rather than a character.</summary>
     public static bool IsReturn(Keystroke stroke) => stroke.Unit == Return;
 }

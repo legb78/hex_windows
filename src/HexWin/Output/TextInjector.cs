@@ -6,17 +6,17 @@ using HexWin.Input;
 namespace HexWin.Output;
 
 /// <summary>
-/// Remet le texte transcrit à l'application active.
+/// Hands the transcribed text back to the active application.
 ///
-/// Deux voies. Le collage passe par le presse-papiers puis Ctrl+V : instantané
-/// quel que soit le volume, c'est le défaut. La frappe simulée envoie les
-/// caractères un à un, plus lentement, mais elle passe dans les applications
-/// qui ignorent le presse-papiers.
+/// Two routes. Pasting goes through the clipboard then Ctrl+V: instant
+/// whatever the volume, and the default. Simulated typing sends the characters
+/// one by one, more slowly, but it gets through in applications that ignore
+/// the clipboard.
 ///
-/// Coquille Win32 : la construction des frappes appartient à
-/// <see cref="UnicodeKeystrokes"/>, qui se teste.
+/// Win32 shell: building the keystrokes belongs to
+/// <see cref="UnicodeKeystrokes"/>, which is testable.
 /// </summary>
-[ExcludeFromCodeCoverage(Justification = "Coquille Win32 : SendInput écrit dans la fenêtre active du bureau réel.")]
+[ExcludeFromCodeCoverage(Justification = "Win32 shell: SendInput writes into the active window of the real desktop.")]
 internal sealed partial class TextInjector
 {
     private const uint InputKeyboard = 1;
@@ -27,15 +27,15 @@ internal sealed partial class TextInjector
     private const ushort KeyV = 0x56;
 
     /// <summary>
-    /// Délai laissé à l'application cible pour lire le presse-papiers avant
-    /// qu'on ne le restaure. Trop court, le collage récupérerait l'ancien
-    /// contenu ; trop long, l'utilisateur retrouverait le texte dicté dans son
-    /// presse-papiers s'il enchaîne aussitôt sur un autre collage.
+    /// Grace period left to the target application to read the clipboard
+    /// before we restore it. Too short and the paste would pick up the old
+    /// content; too long and the user would find the dictated text still in
+    /// their clipboard if they paste again right away.
     /// </summary>
     private static readonly TimeSpan ClipboardRestoreDelay = TimeSpan.FromMilliseconds(400);
 
     /// <summary>
-    /// Insère le texte dans le champ actif selon le mode demandé.
+    /// Inserts the text into the active field, using the requested mode.
     /// </summary>
     public static void Insert(string text, InsertionMode mode)
     {
@@ -54,40 +54,38 @@ internal sealed partial class TextInjector
     }
 
     /// <summary>
-    /// Colle par le presse-papiers, en restaurant ensuite ce qui s'y trouvait.
+    /// Pastes through the clipboard, then puts back whatever was there.
     ///
-    /// La restauration compte : sans elle, chaque dictée écraserait ce que
-    /// l'utilisateur avait copié, ce qui se remarque au pire moment.
+    /// Restoring matters: without it, every dictation would overwrite what the
+    /// user had copied, which gets noticed at the worst possible moment.
     /// </summary>
     private static void SendAsPaste(string text)
     {
         ClipboardSnapshot previous = ClipboardSnapshot.Capture();
 
-        // copy: true conserve les données après la fin du processus. Sans ce
-        // drapeau, le texte disparaîtrait du presse-papiers dès la fermeture
-        // de l'application, et l'utilisateur ne pourrait plus le recoller.
+        // copy: true keeps the data alive after the process ends. Without that
+        // flag, the text would vanish from the clipboard as soon as the
+        // application closed, and the user could no longer paste it.
         Clipboard.SetDataObject(BuildPrivateTransfer(text), copy: true);
         SendPasteShortcut();
 
-        // La restauration est différée : Ctrl+V est asynchrone, l'application
-        // cible n'a pas encore lu le presse-papiers au retour de SendInput.
+        // Restoration is deferred: Ctrl+V is asynchronous, and the target
+        // application has not read the clipboard yet when SendInput returns.
         RestoreAfterDelay(previous);
     }
 
     /// <summary>
-    /// Emballe le texte en demandant à Windows de ne pas le conserver.
+    /// Wraps the text while asking Windows not to keep it.
     ///
-    /// <para>Un simple <c>SetDataObject(text)</c> place la dictée dans
-    /// l'historique du presse-papiers — celui de <c>Win+V</c>, actif par défaut
-    /// sur beaucoup de machines — où elle reste consultable longtemps après
-    /// l'insertion. Et si la synchronisation entre appareils est activée, elle
-    /// part chez Microsoft : une application qui annonce ne rien envoyer sur le
-    /// réseau ne peut pas se le permettre.</para>
+    /// <para>A plain <c>SetDataObject(text)</c> puts the dictation into the
+    /// clipboard history — the <c>Win+V</c> one, on by default on many
+    /// machines — where it stays readable long after the insertion. And if
+    /// cross-device sync is on, it goes to Microsoft: an application that
+    /// claims to send nothing over the network cannot afford that.</para>
     ///
-    /// <para>Les trois formats ci-dessous sont la façon documentée de s'en
-    /// exclure, celle qu'utilisent les gestionnaires de mots de passe. Ils
-    /// attendent des valeurs binaires : un entier 32 bits nul pour les deux
-    /// premiers, une présence sans contenu pour le troisième.</para>
+    /// <para>The three formats below are the documented way to opt out, the
+    /// one password managers use. They expect binary values: a zeroed 32-bit
+    /// integer for the first two, mere presence for the third.</para>
     /// </summary>
     private static DataObject BuildPrivateTransfer(string text)
     {
@@ -106,43 +104,44 @@ internal sealed partial class TextInjector
     private const string MonitorProcessingFormat = "ExcludeClipboardContentFromMonitorProcessing";
 
     /// <summary>
-    /// Réécrit le contenu sauvegardé après un court délai, sur le fil courant.
+    /// Writes the saved content back after a short delay, on the calling
+    /// thread.
     ///
-    /// <para>Ce délai bloque volontairement l'appelant. Une première version
-    /// déportait la restauration sur un fil dédié : marquer ce fil STA ne
-    /// suffit pas, les API de presse-papiers exigent aussi une initialisation
-    /// OLE que <c>Thread</c> ne fournit pas. La restauration échouait alors en
-    /// silence, et le presse-papiers de l'utilisateur restait perdu.</para>
+    /// <para>That delay deliberately blocks the caller. An early version moved
+    /// restoration onto a dedicated thread: marking that thread STA is not
+    /// enough, since the clipboard APIs also need an OLE initialisation that
+    /// <c>Thread</c> does not provide. Restoration then failed in silence, and
+    /// the clipboard of the user stayed lost.</para>
     ///
-    /// <para>Bloquer est ici sans conséquence : l'application n'a pas de
-    /// fenêtre, et le texte est déjà collé quand l'attente commence.</para>
+    /// <para>Blocking is harmless here: the application has no window, and the
+    /// text is already pasted when the wait begins.</para>
     /// </summary>
     private static void RestoreAfterDelay(ClipboardSnapshot previous)
     {
-        // Appelé même quand rien n'avait pu être capturé : dans ce cas Restore
-        // vide le presse-papiers, au lieu d'y laisser le texte dicté. Une
-        // première version sortait ici quand l'instantané était vide, ce qui
-        // court-circuitait précisément ce vidage — une garde en double, à deux
-        // niveaux, dont l'une annulait l'autre.
+        // Called even when nothing could be captured: in that case Restore
+        // empties the clipboard, instead of leaving the dictated text in it.
+        // An early version returned here when the snapshot was empty, which
+        // short-circuited exactly that emptying — a double guard, at two
+        // levels, one of which cancelled the other.
         Thread.Sleep(ClipboardRestoreDelay);
         previous.Restore();
     }
 
     /// <summary>
-    /// Relâche les modificateurs que le système croit encore enfoncés, avant
-    /// d'injecter un raccourci.
+    /// Releases the modifiers the system still believes are held, before
+    /// injecting a shortcut.
     ///
-    /// <para>Sans cette précaution, <c>Ctrl+V</c> se combine avec ce qui reste
-    /// actif et devient un tout autre raccourci. Le cas rencontré : la touche
-    /// Windows encore tenue transformait le collage en <b>Win+Ctrl+V</b>, qui
-    /// ouvre le panneau de sortie audio de Windows. Le panneau volait le
-    /// focus, et le texte transcrit disparaissait — sans erreur, sans trace,
-    /// et de façon intermittente selon l'ordre dans lequel l'utilisateur
-    /// relâchait ses touches.</para>
+    /// <para>Without that precaution, <c>Ctrl+V</c> combines with whatever is
+    /// still active and becomes an entirely different shortcut. The case we
+    /// hit: the Windows key still held turned the paste into <b>Win+Ctrl+V</b>,
+    /// which opens the Windows audio output panel. The panel stole the focus,
+    /// and the transcribed text disappeared — no error, no trace, and
+    /// intermittently, depending on the order in which the user released their
+    /// keys.</para>
     ///
-    /// <para>On n'injecte le relâchement que pour les touches réellement
-    /// actives : un relâchement superflu est inoffensif, mais autant ne pas
-    /// polluer la file d'événements.</para>
+    /// <para>We only inject a release for keys that are genuinely down: a
+    /// superfluous release is harmless, but there is no point cluttering the
+    /// event queue.</para>
     /// </summary>
     private static void ReleaseStrayModifiers()
     {
@@ -159,8 +158,8 @@ internal sealed partial class TextInjector
     }
 
     /// <summary>
-    /// Modificateurs susceptibles de détourner Ctrl+V. Le Ctrl que l'on
-    /// injecte soi-même n'y figure pas, évidemment.
+    /// Modifiers liable to hijack Ctrl+V. The Ctrl we inject ourselves is not
+    /// among them, naturally.
     /// </summary>
     private static readonly int[] ModifiersToClear =
     [
@@ -172,7 +171,7 @@ internal sealed partial class TextInjector
         VirtualKeys.RightShift,
     ];
 
-    /// <summary>Le bit de poids fort indique une touche actuellement enfoncée.</summary>
+    /// <summary>The high bit marks a key that is currently held down.</summary>
     private static bool IsPhysicallyDown(int virtualKey) =>
         (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
 
@@ -225,8 +224,8 @@ internal sealed partial class TextInjector
         {
             Keyboard = new KeyboardInputData
             {
-                // En mode Unicode, le caractère voyage dans le code de scan et
-                // le code virtuel doit rester nul.
+                // In Unicode mode the character travels in the scan code, and
+                // the virtual code must stay zero.
                 VirtualKey = 0,
                 ScanCode = unit,
                 Flags = KeyEventUnicode | (keyUp ? KeyEventKeyUp : 0),
@@ -261,8 +260,8 @@ internal sealed partial class TextInjector
         public KeyboardInputData Keyboard;
 
         /// <summary>
-        /// Réserve la place de la plus grande variante de l'union, pour que la
-        /// taille de la structure soit celle qu'attend Win32.
+        /// Reserves room for the largest variant of the union, so that the
+        /// structure is the size Win32 expects.
         /// </summary>
         [FieldOffset(0)]
         private MouseInputData _mouse;

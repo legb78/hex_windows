@@ -1,61 +1,61 @@
 {
-  // Configuration de HexWin. Les commentaires sont autorisés.
-  // Une valeur invalide est silencieusement remplacée par son défaut :
-  // un fichier abîmé n'empêche jamais la dictée de démarrer.
+  // HexWin settings. Comments are allowed.
+  // An invalid value is silently replaced by its default: a damaged file
+  // never stops dictation from starting.
 
-  // Dossier du modèle Parakeet, relatif à l'exécutable.
-  // C'est un dossier et non un fichier : le modèle se compose d'un encodeur,
-  // d'un décodeur, d'un joiner et d'un vocabulaire.
-  // Téléchargeable avec scripts/get-model.ps1
+  // Folder holding the Parakeet model, relative to the executable.
+  // A folder and not a file: the model is made of an encoder, a decoder,
+  // a joiner and a vocabulary.
+  // Download it with get-model.ps1
   "modelPath": "models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
 
-  // Il n'y a pas de réglage de langue : Parakeet v3 reconnaît seul laquelle
-  // de ses 25 langues européennes est parlée, français compris.
+  // There is no language setting: Parakeet v3 works out on its own which of
+  // its 25 European languages is being spoken.
 
-  // Touches à maintenir pour dicter.
-  // Valeurs possibles : Ctrl, LeftCtrl, RightCtrl, Alt, LeftAlt, RightAlt,
+  // Keys to hold in order to dictate.
+  // Accepted values: Ctrl, LeftCtrl, RightCtrl, Alt, LeftAlt, RightAlt,
   // Shift, LeftShift, RightShift, Win, LeftWin, RightWin, CapsLock, Space,
-  // F13 à F24.
-  // La touche Fn n'est pas utilisable : elle est gérée par le contrôleur
-  // embarqué du clavier et n'émet aucun code visible par Windows.
+  // F13 through F24.
+  // Fn cannot be used: it is handled by the keyboard controller and emits no
+  // code Windows can see.
   "hotkey": ["Ctrl", "Win"],
 
-  // En deçà, l'appui est considéré comme accidentel et ignoré.
+  // Below this, the keypress is treated as accidental and ignored.
   "minRecordingMilliseconds": 250,
 
-  // Coupe l'enregistrement si la touche reste enfoncée.
+  // Stops recording if the key stays held down.
   "maxRecordingSeconds": 120,
 
-  // Fournisseur de calcul. "cpu" est aujourd'hui le seul possible, et ce
-  // n'est pas un choix : les bibliothèques natives de sherpa-onnx publiées
-  // sur NuGet ne sont compilées que pour le processeur.
+  // Minutes without dictating after which the model is freed from memory.
+  // Set 0 to keep it resident indefinitely.
   //
-  // "directml" et "cuda" ont été retirés après essai : ils étaient acceptés,
-  // puis retombaient silencieusement sur le processeur. Le réglage promettait
-  // une accélération inatteignable. Exploiter un GPU demanderait de
-  // recompiler sherpa-onnx — pour un gain incertain, le processeur
-  // transcrivant déjà une phrase de cinq secondes en 0,17 s.
-  "provider": "cpu",
-
-  // Fils d'exécution alloués au décodage. Au-delà d'une poignée, le gain
-  // s'effondre : le modèle est petit et la synchronisation coûte davantage
-  // que le parallélisme n'apporte.
-  "threads": 4,
-
-  // Minutes sans dictée au bout desquelles le modèle est libéré de la
-  // mémoire. Mettre 0 le garde résident indéfiniment.
-  //
-  // Le modèle occupe environ 1 Go une fois chargé. Le libérer rend cette
-  // mémoire au système ; la dictée suivante paie un rechargement d'environ
-  // 3 s — mais celui-ci démarre dès que la touche est ENFONCÉE, donc pendant
-  // que vous parlez. Sur une phrase de deux secondes, l'attente réellement
-  // ressentie se réduit à ce qui dépasse.
+  // The model takes about 1 GB once loaded. Freeing it returns that memory to
+  // the system; the next dictation pays a reload of roughly 2 s — but the
+  // reload starts the moment the hotkey is PRESSED, so it runs while you are
+  // still speaking. On a two-second phrase you feel nothing.
   "unloadAfterMinutes": 5,
 
-  // "Paste" : presse-papiers puis Ctrl+V (instantané).
-  // "Type"  : frappe simulée, pour les applications qui ignorent le collage.
+  // Compute provider. "cpu" is the only one available today, and that is not
+  // a choice: the sherpa-onnx native libraries published on NuGet are built
+  // for CPU only.
+  //
+  // "directml" and "cuda" were removed after testing: they were accepted,
+  // then silently fell back to the CPU. The setting promised an acceleration
+  // that could not happen. Using a GPU would mean rebuilding sherpa-onnx —
+  // for an uncertain gain, since the CPU already transcribes a five-second
+  // phrase in 0.17 s.
+  "provider": "cpu",
+
+  // Threads allocated to decoding. Past a handful the gain collapses: the
+  // model is small and synchronisation costs more than parallelism returns.
+  "threads": 4,
+
+  // "Paste" : clipboard then Ctrl+V (instant).
+  // "Type"  : simulated keystrokes, for applications that ignore pasting.
   "insertion": "Paste",
 
-  // Journalise les transcriptions et le moteur réellement chargé.
+  // Logs each dictation: duration, captured level, characters produced.
+  // Those three numbers together tell you whether the microphone heard you,
+  // whether the engine understood you, and whether the text made it out.
   "logEnabled": true
 }

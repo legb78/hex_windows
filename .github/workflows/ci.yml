@@ -1,11 +1,11 @@
 name: CI
 
-# Le dépôt est privé et les runners Windows sont facturés 2x les minutes
-# Actions. Chaque réglage ci-dessous existe pour limiter la consommation :
-#   - paths-ignore  : pas de build pour une modification de documentation
-#   - concurrency   : un nouveau push annule le run précédent de la même PR
-#   - timeout       : plafonne un run qui partirait en boucle
-#   - cache NuGet   : évite de retélécharger les paquets à chaque run
+# The repository is private and Windows runners bill at double the Actions
+# rate. Every setting below exists to keep that cost down:
+#   - paths-ignore  : no build for a documentation-only change
+#   - concurrency   : a new push cancels the previous run of the same PR
+#   - timeout       : caps a run that would otherwise spin
+#   - NuGet cache   : avoids re-downloading packages every run
 
 on:
   pull_request:
@@ -32,58 +32,58 @@ concurrency:
 
 jobs:
   build-test:
-    name: Build, tests et couverture
+    name: Build, tests and coverage
     runs-on: windows-latest
     timeout-minutes: 20
 
     steps:
-      - name: Récupération du code
+      - name: Check out the code
         uses: actions/checkout@v7
 
-      - name: Installation du SDK .NET
+      - name: Install the .NET SDK
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '9.0.x'
 
-      - name: Cache des paquets NuGet
+      - name: Cache NuGet packages
         uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
           restore-keys: nuget-${{ runner.os }}-
 
-      - name: Restauration
+      - name: Restore
         run: dotnet restore
 
-      # Échoue si une dépendance porte une faille connue, transitives
-      # comprises. dotnet ne rend pas un code d'erreur dans ce cas : on
-      # inspecte donc sa sortie.
-      - name: Dépendances vulnérables
+      # Fails if a dependency carries a known vulnerability, transitive ones
+      # included. dotnet returns no error code in that case, so its output has
+      # to be inspected — otherwise this check would be decorative.
+      - name: Vulnerable dependencies
         shell: pwsh
         run: |
-          $rapport = dotnet list package --vulnerable --include-transitive 2>&1 | Out-String
-          Write-Host $rapport
-          if ($rapport -match 'has the following vulnerable packages') {
-            Write-Error "Une dépendance porte une faille connue."
+          $report = dotnet list package --vulnerable --include-transitive 2>&1 | Out-String
+          Write-Host $report
+          if ($report -match 'has the following vulnerable packages') {
+            Write-Error "A dependency carries a known vulnerability."
             exit 1
           }
-          Write-Host "Aucune dépendance vulnérable." -ForegroundColor Green
+          Write-Host "No vulnerable dependency." -ForegroundColor Green
 
-      - name: Compilation
+      - name: Build
         run: dotnet build -c Release --no-restore
 
-      # Le formatage est vérifié après la compilation : une erreur de syntaxe
-      # donnerait ici un message bien moins clair que celui du compilateur.
-      - name: Formatage
+      # Formatting is checked after the build, not before: a syntax error would
+      # produce a far less useful message here than from the compiler.
+      - name: Formatting
         run: dotnet format --verify-no-changes --no-restore
 
-      # Les seuils portent sur la logique pure uniquement : les coquilles
-      # Win32 sont marquées [ExcludeFromCodeCoverage], faute de pouvoir être
-      # atteintes sans micro, clavier ni session interactive. Mesurer leur
-      # couverture rendrait le chiffre insignifiant.
+      # The threshold covers the pure logic only. The Windows shells are marked
+      # [ExcludeFromCodeCoverage], since they cannot be reached without a
+      # microphone, a keyboard or an interactive session. Measuring them would
+      # make the number meaningless.
       #
-      # Les tests d'intégration sont exclus : le modèle pèse 578 Mo.
-      - name: Tests et couverture
+      # Integration tests are excluded: the model weighs 578 MB.
+      - name: Tests and coverage
         run: >
           dotnet test -c Release --no-build
           --filter "Category!=Integration"

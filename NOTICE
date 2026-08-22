@@ -1,88 +1,86 @@
 HexWin
 Copyright 2026 Djamel OUAZAR
 
-Ce produit est distribué sous la licence Apache 2.0 (voir le fichier LICENSE).
+This product is distributed under the Apache 2.0 licence (see the LICENSE file).
 
 
 ================================================================================
-COMPOSANTS TIERS
+THIRD-PARTY COMPONENTS
 ================================================================================
 
-HexWin ne redistribue aucun de ces composants dans son dépôt : ils sont
-téléchargés à la compilation (paquets NuGet) ou par scripts/get-model.ps1
-(modèle de reconnaissance). Ils restent régis par leurs licences respectives,
-rappelées ici.
+HexWin redistributes none of these components in its repository: they are
+fetched at build time (NuGet packages) or by scripts/get-model.ps1 (the
+recognition model). They remain governed by their own licences, restated here.
 
 
 --------------------------------------------------------------------------------
 Parakeet TDT 0.6B v3
 --------------------------------------------------------------------------------
-Auteur   : NVIDIA Corporation
+Author   : NVIDIA Corporation
 Licence  : Creative Commons Attribution 4.0 International (CC-BY-4.0)
 Source   : https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3
-Export ONNX utilisé : https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models
+ONNX export used : https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models
 
-La licence CC-BY-4.0 exige que l'auteur soit cité. Cette mention y pourvoit.
-Elle autorise l'usage commercial comme non commercial, ainsi que la
-redistribution du modèle et de ses dérivés.
+CC-BY-4.0 requires that the author be credited. This notice does so. It permits
+commercial and non-commercial use, as well as redistribution of the model and
+works derived from it.
 
 
 --------------------------------------------------------------------------------
 sherpa-onnx
 --------------------------------------------------------------------------------
-Auteur   : Next-gen Kaldi (k2-fsa)
+Author   : Next-gen Kaldi (k2-fsa)
 Licence  : Apache License 2.0
 Source   : https://github.com/k2-fsa/sherpa-onnx
 
-Fournit l'exécution du modèle Parakeet, ainsi que les bibliothèques natives
-embarquées dans l'exécutable publié.
+Runs the Parakeet model, and provides the native libraries embedded in the
+published executable.
 
 
 --------------------------------------------------------------------------------
 ONNX Runtime
 --------------------------------------------------------------------------------
-Auteur   : Microsoft Corporation
+Author   : Microsoft Corporation
 Licence  : MIT
 Source   : https://github.com/microsoft/onnxruntime
 
-Moteur d'inférence utilisé par sherpa-onnx.
+The inference engine used by sherpa-onnx.
 
 
 --------------------------------------------------------------------------------
 NAudio
 --------------------------------------------------------------------------------
-Auteur   : Mark Heath et contributeurs
+Author   : Mark Heath and contributors
 Licence  : MIT
 Source   : https://github.com/naudio/NAudio
 
-Capture du microphone.
+Microphone capture.
 
 
 --------------------------------------------------------------------------------
-.NET et Windows Forms
+.NET and Windows Forms
 --------------------------------------------------------------------------------
-Auteur   : Microsoft Corporation et la fondation .NET
+Author   : Microsoft Corporation and the .NET Foundation
 Licence  : MIT
 Source   : https://github.com/dotnet/runtime
 
-Plateforme d'exécution, embarquée dans l'exécutable autonome publié.
+The runtime platform, bundled inside the published self-contained executable.
 
 
 --------------------------------------------------------------------------------
 xUnit.net
 --------------------------------------------------------------------------------
-Auteur   : .NET Foundation et contributeurs
+Author   : .NET Foundation and contributors
 Licence  : Apache License 2.0
 Source   : https://github.com/xunit/xunit
 
-Utilisé pour les tests uniquement : ce composant n'est pas distribué avec
-l'application.
+Used for tests only: this component is not distributed with the application.
 
 
 ================================================================================
 INSPIRATION
 ================================================================================
 
-HexWin reprend le principe d'usage de Hex (https://github.com/kitlangton/Hex),
-application de dictée pour macOS, ainsi que son choix de moteur — Parakeet
-plutôt que Whisper. Aucun code n'en est repris : Hex est écrit en Swift.
+HexWin takes its interaction model from Hex (https://github.com/kitlangton/Hex),
+a dictation app for macOS, along with its choice of engine — Parakeet rather
+than Whisper. No code is taken from it: Hex is written in Swift.

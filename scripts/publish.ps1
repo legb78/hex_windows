@@ -1,18 +1,19 @@
-<#
+﻿<#
 .SYNOPSIS
-    Produit l'exécutable autonome de HexWin.
+    Builds the self-contained HexWin executable.
 
 .DESCRIPTION
-    Compile en un fichier unique, autonome : ni .NET ni aucune dépendance à
-    installer sur la machine cible. Les bibliothèques natives de sherpa-onnx
-    sont embarquées dans l'exécutable et extraites au premier lancement.
+    Produces a single self-contained file: neither .NET nor any dependency has
+    to be installed on the target machine. The sherpa-onnx native libraries are
+    embedded in the executable and extracted on first run.
 
-    L'exécutable pèse environ 126 Mo — c'est le prix du runtime .NET et du
-    moteur de reconnaissance embarqués. Le modèle, lui, reste à télécharger
-    séparément avec get-model.ps1.
+    The executable weighs about 120 MB — that is the price of bundling the .NET
+    runtime and the recognition engine. It compresses to roughly 50 MB in the
+    published archive. The model itself is downloaded separately with
+    get-model.ps1.
 
 .PARAMETER Output
-    Dossier de destination. Par défaut publish/ à la racine du dépôt.
+    Destination folder. Defaults to publish/ at the repository root.
 
 .EXAMPLE
     .\scripts\publish.ps1
@@ -43,14 +44,14 @@ Write-Host ''
     -o $Output
 
 if ($LASTEXITCODE -ne 0) {
-    throw "La publication a échoué (code $LASTEXITCODE)."
+    throw "Publish failed (exit code $LASTEXITCODE)."
 }
 
 $exe = Join-Path $Output 'HexWin.exe'
 $size = [math]::Round((Get-Item $exe).Length / 1MB)
 
 Write-Host ''
-Write-Host "Exécutable produit : $exe ($size Mo)" -ForegroundColor Green
+Write-Host "Executable built: $exe ($size MB)" -ForegroundColor Green
 Write-Host ''
-Write-Host "Le modèle n'est pas inclus. Sur la machine cible :"
+Write-Host "The model is not included. On the target machine:"
 Write-Host "  .\get-model.ps1"

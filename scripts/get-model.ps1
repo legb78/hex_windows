@@ -1,29 +1,27 @@
 ﻿<#
 .SYNOPSIS
-    Télécharge le modèle de reconnaissance vocale dans le dossier models/.
+    Downloads the speech recognition model into the models/ folder.
 
 .DESCRIPTION
-    Les modèles ne sont pas versionnés dans le dépôt : ils pèsent plusieurs
-    centaines de mégaoctets, très au-delà de la limite de 100 Mo de GitHub.
+    Models are not tracked in the repository: they weigh several hundred
+    megabytes, far past GitHub's 100 MB limit.
 
-    Le modèle par défaut est Parakeet TDT 0.6B v3 de NVIDIA, celui qu'utilise
-    Hex sur macOS. Contrairement à Whisper, il se présente en plusieurs
-    fichiers — encodeur, décodeur, joiner et vocabulaire — d'où une archive à
-    extraire plutôt qu'un fichier unique.
+    The default is NVIDIA's Parakeet TDT 0.6B v3, the same engine Hex uses on
+    macOS. Unlike Whisper it comes as several files — encoder, decoder, joiner
+    and vocabulary — hence an archive to extract rather than a single file.
 
-    Le téléchargement passe par un fichier temporaire, et l'extraction n'a lieu
-    qu'une fois l'archive complète. Une coupure réseau ne laisse donc jamais un
-    modèle partiellement écrit, que le moteur chargerait avant d'échouer de
-    façon incompréhensible.
+    The download goes to a temporary file and is only extracted once complete.
+    A dropped connection therefore never leaves a partially written model that
+    the engine would load before failing in some incomprehensible way.
 
 .PARAMETER Model
-    parakeet-v3  (~578 Mo extrait) 25 langues européennes dont le français.
-                                   Le défaut, et le plus rapide.
-    parakeet-v2  (~578 Mo extrait) anglais uniquement, légèrement plus précis
-                                   sur cette langue.
+    parakeet-v3  (~578 MB extracted) 25 European languages including French.
+                                     The default, and the fastest.
+    parakeet-v2  (~578 MB extracted) English only, marginally more accurate on
+                                     that language.
 
 .PARAMETER Force
-    Retélécharge même si le modèle est déjà présent.
+    Downloads again even if the model is already present.
 
 .EXAMPLE
     .\scripts\get-model.ps1
@@ -39,7 +37,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# PowerShell 5.1 négocie encore TLS 1.0 par défaut, que GitHub refuse.
+# PowerShell 5.1 still negotiates TLS 1.0 by default, which GitHub refuses.
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $archives = @{
@@ -56,26 +54,26 @@ $modelsDir = Join-Path $repoRoot 'models'
 $destination = Join-Path $modelsDir $modelName
 $archivePath = Join-Path $modelsDir $archiveName
 
-# Fichiers que le moteur exige : leur présence sert de test de complétude.
+# Files the engine requires. Their presence doubles as a completeness check.
 $requiredFiles = @('encoder.int8.onnx', 'decoder.int8.onnx', 'joiner.int8.onnx', 'tokens.txt')
 
 if (-not (Test-Path $modelsDir)) {
     New-Item -ItemType Directory -Path $modelsDir | Out-Null
 }
 
-Write-Host "Modèle      : $modelName"
+Write-Host "Model       : $modelName"
 Write-Host "Destination : $destination"
 
 if ((Test-Path $destination) -and -not $Force) {
     $missing = $requiredFiles | Where-Object { -not (Test-Path (Join-Path $destination $_)) }
 
     if ($missing.Count -eq 0) {
-        Write-Host "Déjà présent et complet, rien à faire." -ForegroundColor Green
-        Write-Host "Utilisez -Force pour retélécharger."
+        Write-Host "Already present and complete, nothing to do." -ForegroundColor Green
+        Write-Host "Use -Force to download again."
         return
     }
 
-    Write-Warning "Modèle incomplet (manque : $($missing -join ', ')), retéléchargement."
+    Write-Warning "Model incomplete (missing: $($missing -join ', ')), downloading again."
 }
 
 Add-Type -AssemblyName System.Net.Http
@@ -89,7 +87,7 @@ try {
 
     $expectedBytes = $response.Content.Headers.ContentLength
     if ($expectedBytes) {
-        Write-Host ("Archive     : {0:N0} Mo à télécharger" -f [math]::Round($expectedBytes / 1MB))
+        Write-Host ("Archive     : {0:N0} MB to download" -f [math]::Round($expectedBytes / 1MB))
     }
 
     $source = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
@@ -107,14 +105,14 @@ try {
             $target.Write($buffer, 0, $read)
             $downloaded += $read
 
-            # Rafraîchir la barre à chaque bloc coûterait plus cher que le
-            # téléchargement lui-même.
+            # Refreshing the bar on every block would cost more than the
+            # download itself.
             if (([DateTime]::UtcNow - $lastReport).TotalMilliseconds -ge 500) {
                 $lastReport = [DateTime]::UtcNow
                 if ($expectedBytes) {
                     $percent = [math]::Min([math]::Round(($downloaded / $expectedBytes) * 100, 1), 100)
-                    Write-Progress -Activity "Téléchargement de $archiveName" `
-                        -Status ("{0:N0} Mo sur {1:N0} Mo" -f ($downloaded / 1MB), ($expectedBytes / 1MB)) `
+                    Write-Progress -Activity "Downloading $archiveName" `
+                        -Status ("{0:N0} MB of {1:N0} MB" -f ($downloaded / 1MB), ($expectedBytes / 1MB)) `
                         -PercentComplete $percent
                 }
             }
@@ -123,33 +121,33 @@ try {
     finally {
         $target.Dispose()
         $source.Dispose()
-        Write-Progress -Activity "Téléchargement de $archiveName" -Completed
+        Write-Progress -Activity "Downloading $archiveName" -Completed
     }
 
     $actual = (Get-Item $archivePath).Length
     if ($expectedBytes -and ($actual -ne $expectedBytes)) {
-        throw ("Téléchargement incomplet : {0:N0} octets reçus sur {1:N0} attendus." -f $actual, $expectedBytes)
+        throw ("Incomplete download: {0:N0} bytes received out of {1:N0} expected." -f $actual, $expectedBytes)
     }
 
-    Write-Host "Extraction..."
+    Write-Host "Extracting..."
 
-    # tar est livré avec Windows 10 et 11, et gère le bzip2.
+    # tar ships with Windows 10 and 11, and handles bzip2.
     & tar -xjf $archivePath -C $modelsDir
     if ($LASTEXITCODE -ne 0) {
-        throw "L'extraction a échoué (code $LASTEXITCODE)."
+        throw "Extraction failed (exit code $LASTEXITCODE)."
     }
 
     $missing = $requiredFiles | Where-Object { -not (Test-Path (Join-Path $destination $_)) }
     if ($missing.Count -gt 0) {
-        throw "Archive extraite mais incomplète, il manque : $($missing -join ', ')"
+        throw "Archive extracted but incomplete, missing: $($missing -join ', ')"
     }
 
     Write-Host ''
-    Write-Host "Modèle installé." -ForegroundColor Green
+    Write-Host "Model installed." -ForegroundColor Green
     Write-Host ''
-    Write-Host "Vérifiez la chaîne de transcription avec :"
+    Write-Host "Check the transcription chain with:"
     Write-Host "  dotnet build -c Release"
-    Write-Host "  .\src\HexWin\bin\x64\Release\net9.0-windows\HexWin.exe --transcribe mon-fichier.wav"
+    Write-Host "  .\src\HexWin\bin\x64\Release\net9.0-windows\HexWin.exe --transcribe my-file.wav"
 }
 finally {
     $client.Dispose()

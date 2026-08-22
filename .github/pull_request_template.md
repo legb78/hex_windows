@@ -1,17 +1,17 @@
-## Quoi
+## What
 
-<!-- Ce que fait cette PR, en une ou deux phrases. -->
+<!-- What this pull request does, in a sentence or two. -->
 
-## Pourquoi
+## Why
 
-<!-- Le problème résolu ou le besoin couvert. -->
+<!-- The problem it solves or the need it covers. -->
 
-## Vérifié
+## Verified
 
-- [ ] `dotnet build -c Release` — 0 avertissement
-- [ ] `dotnet test` — au vert
-- [ ] Vérification manuelle (décrire ci-dessous si la PR touche au clavier,
-      au micro, à l'insertion de texte ou à la barre système : ces couches ne
-      sont pas testables en automatique)
+- [ ] `dotnet build -c Release` — 0 warnings
+- [ ] `dotnet test` — green
+- [ ] Manual check (describe it below if this touches the keyboard, the
+      microphone, text insertion or the tray — those layers cannot be tested
+      automatically)
 
-<!-- Décrire ici le test manuel effectué, le cas échéant. -->
+<!-- Describe the manual check here, if there was one. -->

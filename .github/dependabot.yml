@@ -1,7 +1,7 @@
 version: 2
 
 updates:
-  # Dépendances NuGet
+  # NuGet dependencies
   - package-ecosystem: nuget
     directory: '/'
     schedule:
@@ -10,32 +10,32 @@ updates:
     target-branch: develop
     open-pull-requests-limit: 5
     labels:
-      - dependances
+      - dependencies
     commit-message:
       prefix: 'chore(deps)'
     groups:
-      # Les paquets de test bougent ensemble et n'affectent pas le produit
-      # livré : les regrouper évite trois PR pour une seule montée de version.
+      # Test packages move together and do not affect the shipped product:
+      # grouping them avoids three pull requests for one version bump.
       tests:
         patterns:
           - 'xunit*'
           - 'Microsoft.NET.Test.Sdk'
           - 'coverlet.*'
-      # Whisper.net est parti, mais sherpa-onnx et son runtime doivent
-      # impérativement monter ensemble : des versions dépareillées font
-      # échouer le chargement de la bibliothèque native.
-      moteur:
+      # sherpa-onnx and its native runtime must move together, for a more
+      # serious reason: mismatched versions make loading the native library
+      # fail outright.
+      engine:
         patterns:
           - 'org.k2fsa.sherpa.onnx*'
 
-  # Actions GitHub. Le premier run de la CI avait signalé la dépréciation de
-  # Node.js 20 ; ce suivi évite de le redécouvrir dans les journaux.
+  # GitHub Actions. The very first CI run flagged the Node.js 20 deprecation;
+  # tracking them avoids rediscovering that kind of thing in the logs.
   - package-ecosystem: github-actions
     directory: '/'
     schedule:
       interval: monthly
     target-branch: develop
     labels:
-      - dependances
+      - dependencies
     commit-message:
       prefix: 'ci(deps)'

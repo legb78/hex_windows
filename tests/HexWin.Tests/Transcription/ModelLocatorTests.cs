@@ -4,9 +4,9 @@ using Xunit;
 namespace HexWin.Tests.Transcription;
 
 /// <summary>
-/// La recherche est testée sans toucher au disque : le prédicat d'existence
-/// est injecté, ce qui permet de décrire des arborescences entières en une
-/// ligne et de vérifier l'ordre exact des emplacements essayés.
+/// The search is tested without touching the disk: the existence predicate is
+/// injected, which makes it possible to describe whole trees in one line and
+/// to check the exact order in which locations are tried.
 /// </summary>
 public class ModelLocatorTests
 {
@@ -16,9 +16,9 @@ public class ModelLocatorTests
         candidate => paths.Contains(candidate, StringComparer.OrdinalIgnoreCase);
 
     [Fact]
-    public void Le_modele_pose_a_cote_de_l_executable_est_trouve_immediatement()
+    public void A_model_next_to_the_executable_is_found_immediately()
     {
-        // Cas de l'application publiée : models/ est livré avec l'exécutable.
+        // The published application: models/ ships with the executable.
         const string expected = @"C:\app\bin\x64\Release\net9.0-windows\models\m.bin";
 
         string? found = ModelLocator.Resolve("models/m.bin", BaseDirectory, ExistsOnly(expected));
@@ -27,11 +27,11 @@ public class ModelLocatorTests
     }
 
     [Fact]
-    public void Le_modele_range_a_la_racine_du_depot_est_trouve_en_remontant()
+    public void A_model_at_the_repository_root_is_found_by_walking_up()
     {
-        // Cas du développement : l'exécutable est au fond de bin/, le modèle
-        // à la racine. Sans remontée, il faudrait dupliquer 1,5 Go par
-        // configuration de compilation.
+        // Development: the executable is deep inside bin/, the model at the
+        // root. Without walking up, 1.5 GB would have to be duplicated per
+        // build configuration.
         const string expected = @"C:\app\models\m.bin";
 
         string? found = ModelLocator.Resolve("models/m.bin", BaseDirectory, ExistsOnly(expected));
@@ -40,7 +40,7 @@ public class ModelLocatorTests
     }
 
     [Fact]
-    public void Le_plus_proche_de_l_executable_l_emporte()
+    public void The_closest_to_the_executable_wins()
     {
         const string closest = @"C:\app\bin\x64\Release\net9.0-windows\models\m.bin";
         const string farther = @"C:\app\models\m.bin";
@@ -51,7 +51,7 @@ public class ModelLocatorTests
     }
 
     [Fact]
-    public void Un_modele_absent_partout_rend_null()
+    public void A_model_missing_everywhere_returns_null()
     {
         string? found = ModelLocator.Resolve("models/m.bin", BaseDirectory, _ => false);
 
@@ -59,10 +59,10 @@ public class ModelLocatorTests
     }
 
     [Fact]
-    public void La_remontee_s_arrete_a_la_limite_demandee()
+    public void Walking_up_stops_at_the_requested_limit()
     {
-        // Sans limite, une recherche infructueuse remonterait jusqu'à la
-        // racine du disque en interrogeant le système à chaque niveau.
+        // With no limit, a fruitless search would climb to the root of the
+        // disk, asking the system at every level.
         const string tooFarUp = @"C:\models\m.bin";
 
         string? found = ModelLocator.Resolve(
@@ -72,7 +72,7 @@ public class ModelLocatorTests
     }
 
     [Fact]
-    public void Un_chemin_absolu_est_pris_au_mot()
+    public void An_absolute_path_is_taken_at_its_word()
     {
         const string absolute = @"D:\mes-modeles\m.bin";
 
@@ -82,10 +82,10 @@ public class ModelLocatorTests
     }
 
     [Fact]
-    public void Un_chemin_absolu_inexistant_ne_declenche_aucune_remontee()
+    public void A_missing_absolute_path_triggers_no_walking_up()
     {
-        // Un chemin absolu exprime une intention explicite : aller chercher
-        // ailleurs serait surprenant.
+        // An absolute path states an explicit intention: looking elsewhere
+        // would be surprising.
         const string absolute = @"D:\mes-modeles\m.bin";
         const string elsewhere = @"C:\app\models\m.bin";
 
@@ -97,7 +97,7 @@ public class ModelLocatorTests
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public void Un_chemin_vide_est_refuse(string configured)
+    public void An_empty_path_is_refused(string configured)
     {
         Assert.Throws<ArgumentException>(
             () => ModelLocator.Resolve(configured, BaseDirectory, _ => true));

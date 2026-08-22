@@ -12,8 +12,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# The write-capable token is granted to the publishing job only. The job that
+# merely reads a version number has no reason to hold it.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   check:
@@ -32,22 +34,39 @@ jobs:
 
       # This job runs on Linux: reading one XML file does not justify a Windows
       # runner, billed at double the rate.
+      #
+      # The value is validated on the spot. It comes from a file any pull
+      # request author can edit, and it ends up in a shell command below — a
+      # version of `1.0.1"; curl … | bash; #` would otherwise run as written.
+      # Refusing anything that is not three plain numbers closes that off at
+      # the source.
       - name: Read the version
         id: read
         run: |
           version=$(grep -oPm1 '(?<=<Version>)[^<]+' Directory.Build.props)
+
+          if ! printf '%s' "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Refusing a version that is not MAJOR.MINOR.PATCH: '$version'" >&2
+            exit 1
+          fi
+
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Declared version: $version"
 
+      # Passed through the environment and quoted, never interpolated straight
+      # into the script: ${{ }} is substituted textually before bash sees it,
+      # so anything inside it would be read as shell.
       - name: Does the tag already exist?
         id: decide
+        env:
+          VERSION: ${{ steps.read.outputs.version }}
         run: |
-          if git rev-parse "v${{ steps.read.outputs.version }}" >/dev/null 2>&1; then
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "v${{ steps.read.outputs.version }} is already published, nothing to do."
+            echo "v$VERSION is already published, nothing to do."
           else
             echo "publish=true" >> "$GITHUB_OUTPUT"
-            echo "v${{ steps.read.outputs.version }} is new, publishing."
+            echo "v$VERSION is new, publishing."
           fi
 
   publish:
@@ -56,6 +75,10 @@ jobs:
     if: needs.check.outputs.publish == 'true'
     runs-on: windows-latest
     timeout-minutes: 25
+
+    # The only job that needs to write: it creates the release.
+    permissions:
+      contents: write
 
     steps:
       - name: Check out the code

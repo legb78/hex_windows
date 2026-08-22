@@ -68,12 +68,21 @@ internal sealed class ClipboardSnapshot
     }
 
     /// <summary>
-    /// Réécrit le contenu sauvegardé. Sans effet si rien n'avait pu l'être.
+    /// Réécrit le contenu sauvegardé, ou vide le presse-papiers si rien n'avait
+    /// pu l'être.
+    ///
+    /// <para>Le vidage compte autant que la restauration. Sans lui, un
+    /// presse-papiers initialement vide — ou verrouillé par une autre
+    /// application au moment de la capture — laissait le texte dicté en place
+    /// indéfiniment. Un programme n'a pas besoin de privilège particulier pour
+    /// provoquer ce cas : il suffit qu'il tienne le presse-papiers ouvert
+    /// pendant la dictée.</para>
     /// </summary>
     public void Restore()
     {
         if (!HasContent)
         {
+            ClearSafely();
             return;
         }
 
@@ -100,6 +109,18 @@ internal sealed class ClipboardSnapshot
         {
             // Presse-papiers occupé : on renonce sans bruit plutôt que de
             // faire échouer une dictée par ailleurs réussie.
+        }
+    }
+
+    private static void ClearSafely()
+    {
+        try
+        {
+            Clipboard.Clear();
+        }
+        catch (ExternalException)
+        {
+            // Idem : occupé, on renonce.
         }
     }
 }

@@ -1,7 +1,8 @@
 name: CI
 
-# The repository is private and Windows runners bill at double the Actions
-# rate. Every setting below exists to keep that cost down:
+# Windows runners bill at double the Actions rate. The repository is public, so
+# minutes are free today — but the settings below cost nothing and keep runs
+# quick, which matters more than the invoice:
 #   - paths-ignore  : no build for a documentation-only change
 #   - concurrency   : a new push cancels the previous run of the same PR
 #   - timeout       : caps a run that would otherwise spin
@@ -17,8 +18,8 @@ on:
   # Pushes to main deliberately do NOT run here. A commit reaching main comes
   # from develop and was already validated by its pull request, and the release
   # workflow re-runs the tests before publishing. Keeping this trigger meant
-  # three Windows test runs of the same commit for a single release — billed at
-  # double rate on a private repository.
+  # three Windows test runs of the same commit for a single release, which was
+  # simply waste.
   push:
     branches: [develop]
     paths-ignore:

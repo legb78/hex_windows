@@ -10,18 +10,19 @@ using HexWin.Transcription;
 namespace HexWin.Tray;
 
 /// <summary>
-/// L'application elle-même : icône de barre système, raccourci global, et
-/// enchaînement enregistrement → transcription → insertion.
+/// The application itself: tray icon, global shortcut, and the chain of
+/// recording, transcription and insertion.
 ///
-/// <para><b>Répartition du travail entre les fils.</b> Le rappel du hook
-/// clavier s'exécute sur le fil de la boucle de messages, qu'il ne faut jamais
-/// bloquer — au-delà du délai imparti, Windows désinstalle le hook en
-/// silence. Démarrer et arrêter le micro y est acceptable, c'est immédiat. La
-/// transcription part en revanche sur un fil de fond, puis revient sur le fil
-/// d'interface pour l'insertion : les API de presse-papiers exigent un fil STA
-/// initialisé pour OLE, ce que seul le fil d'interface garantit.</para>
+/// <para><b>How the work is split across threads.</b> The keyboard hook
+/// callback runs on the message-loop thread, which must never be blocked —
+/// past the allotted deadline, Windows uninstalls the hook in silence.
+/// Starting and stopping the microphone there is acceptable, being immediate.
+/// Transcription, by contrast, goes to a background thread, then comes back to
+/// the interface thread for the insertion: the clipboard APIs require an STA
+/// thread initialised for OLE, which only the interface thread
+/// guarantees.</para>
 /// </summary>
-[ExcludeFromCodeCoverage(Justification = "Coquille Windows Forms : exige une session interactive et une boucle de messages.")]
+[ExcludeFromCodeCoverage(Justification = "Windows Forms shell: requires an interactive session and a message loop.")]
 internal sealed class TrayContext : ApplicationContext
 {
     private readonly AppSettings _settings;
@@ -39,7 +40,7 @@ internal sealed class TrayContext : ApplicationContext
     private readonly EngineHost _engines;
     private readonly System.Windows.Forms.Timer _hookWatchdog;
 
-    /// <summary>Fenêtre où l'utilisateur parlait, à retrouver avant d'insérer.</summary>
+    /// <summary>Window the user was speaking into, to find again before inserting.</summary>
     private TargetWindow? _target;
 
     public TrayContext(AppSettings settings, string modelPath)
@@ -49,7 +50,7 @@ internal sealed class TrayContext : ApplicationContext
         _modelPath = modelPath;
 
         _uiThread = SynchronizationContext.Current
-            ?? throw new InvalidOperationException("TrayContext doit être créé sur le fil d'interface.");
+            ?? throw new InvalidOperationException("TrayContext must be created on the interface thread.");
 
         _engines = new EngineHost(
             modelPath,
@@ -70,9 +71,9 @@ internal sealed class TrayContext : ApplicationContext
         _coordinator.StateChanged += (_, state) => ApplyState(state);
         ApplyState(_coordinator.State);
 
-        // Le minuteur Windows Forms tourne sur le fil d'interface, celui-là
-        // même qui détient le hook : la réinstallation se fait donc là où
-        // Windows l'exige.
+        // The Windows Forms timer runs on the interface thread, the very one
+        // that holds the hook: the reinstall therefore happens where Windows
+        // requires it.
         _hookWatchdog = new System.Windows.Forms.Timer { Interval = (int)WatchdogInterval.TotalMilliseconds };
         _hookWatchdog.Tick += (_, _) => WatchHook();
 
@@ -83,9 +84,9 @@ internal sealed class TrayContext : ApplicationContext
     }
 
     /// <summary>
-    /// Un clavier muet plus longtemps que ce délai déclenche une
-    /// réinstallation du hook. Assez long pour que ce soit rare, assez court
-    /// pour qu'une panne ne dure pas toute la journée.
+    /// A keyboard silent for longer than this triggers a reinstall of the
+    /// hook. Long enough to be rare, short enough that a failure does not last
+    /// all day.
     /// </summary>
     private static readonly TimeSpan WatchdogInterval = TimeSpan.FromMinutes(2);
 
@@ -97,22 +98,21 @@ internal sealed class TrayContext : ApplicationContext
         }
     }
 
-    // --- Cycle de vie du moteur -------------------------------------------------
+    // --- Engine lifecycle -------------------------------------------------------
 
     /// <summary>
-    /// Prépare le moteur au démarrage.
+    /// Prepares the engine at startup.
     ///
-    /// <para><b>Le modèle n'est chargé que si l'utilisateur a demandé qu'il
-    /// reste résident</b> (<c>unloadAfterMinutes = 0</c>). Sinon, le charger
-    /// ici reviendrait à occuper un gigaoctet dès l'ouverture de session pour
-    /// le rendre quelques minutes plus tard, sans qu'une seule dictée n'ait eu
-    /// lieu — exactement ce que la libération après inactivité cherchait à
-    /// éviter. Le chargement est alors différé à la première dictée, où il se
-    /// déroule pendant que l'utilisateur parle.</para>
+    /// <para><b>The model is only loaded if the user asked for it to stay
+    /// resident</b> (<c>unloadAfterMinutes = 0</c>). Otherwise, loading it here
+    /// would mean taking up a gigabyte from sign-in only to hand it back a few
+    /// minutes later, without a single dictation having happened — exactly what
+    /// releasing after inactivity was meant to avoid. Loading is then deferred
+    /// to the first dictation, where it runs while the user is speaking.</para>
     ///
-    /// <para>Le modèle est en revanche <i>vérifié</i> dans tous les cas :
-    /// découvrir qu'il manque au moment où l'utilisateur parle serait le pire
-    /// moment, sa phrase étant alors déjà perdue.</para>
+    /// <para>The model is nonetheless <i>checked</i> in every case: discovering
+    /// it is missing while the user is speaking would be the worst possible
+    /// moment, their sentence being already lost by then.</para>
     /// </summary>
     private async Task LoadEngineAsync()
     {
@@ -125,7 +125,7 @@ internal sealed class TrayContext : ApplicationContext
             else
             {
                 await Task.Run(() => ParakeetEngine.Validate(_modelPath)).ConfigureAwait(true);
-                _log.Write($"modèle vérifié, chargement différé à la première dictée");
+                _log.Write("modèle vérifié, chargement différé à la première dictée");
             }
 
             _log.Write($"prêt ({_settings.Provider}, {_settings.Threads} fils)");
@@ -140,7 +140,7 @@ internal sealed class TrayContext : ApplicationContext
         }
     }
 
-    // --- Enchaînement d'une dictée ----------------------------------------------
+    // --- One dictation, end to end ----------------------------------------------
 
     private void OnDictationStarted()
     {
@@ -149,10 +149,9 @@ internal sealed class TrayContext : ApplicationContext
             return;
         }
 
-        // Le rechargement est lancé ici, à l'enfoncement, et non au
-        // relâchement : il se déroule pendant que l'utilisateur parle. Sur une
-        // phrase de deux secondes, les trois secondes de chargement sont
-        // presque entièrement masquées.
+        // The reload starts here, on the key press, not on the release: it runs
+        // while the user is speaking. On a two-second sentence, the three
+        // seconds of loading are almost entirely hidden.
         _engines.SetBusy(true);
         _engines.BeginLoad();
 
@@ -176,17 +175,17 @@ internal sealed class TrayContext : ApplicationContext
             return;
         }
 
-        // La fenêtre est mémorisée MAINTENANT, tant qu'elle est encore celle
-        // où l'utilisateur parlait. Après un rechargement du modèle, deux
-        // secondes peuvent s'écouler avant l'insertion — largement le temps
-        // de basculer ailleurs, et d'y déverser un texte non désiré.
+        // The window is remembered NOW, while it is still the one the user was
+        // speaking into. After a model reload, two seconds can pass before the
+        // insertion — ample time to switch elsewhere, and to dump unwanted text
+        // there.
         _target = TargetWindow.Capture();
 
         RecordedAudio? recorded = _recorder.Stop();
 
         if (recorded is not { } audio)
         {
-            // Appui trop bref : l'utilisateur a effleuré la touche.
+            // Press too brief: the user brushed the key.
             _coordinator.Complete();
             _engines.SetBusy(false);
             return;
@@ -209,18 +208,18 @@ internal sealed class TrayContext : ApplicationContext
     {
         try
         {
-            // Rend la main immédiatement si le modèle est déjà là, sinon
-            // attend la fin du chargement commencé à l'enfoncement.
+            // Returns immediately if the model is already there, otherwise
+            // waits for the load that started on the key press.
             ParakeetEngine engine = await _engines.GetAsync().ConfigureAwait(true);
 
             using var wav = new MemoryStream(audio.Wav);
             TranscriptionResult result = await engine.TranscribeAsync(wav).ConfigureAwait(true);
 
-            // Le niveau capté est journalisé avec chaque dictée, et pas
-            // seulement dans le mode diagnostic. Sans lui, « zéro caractère »
-            // est indiagnosticable : impossible de distinguer un micro qui
-            // n'entend rien d'un moteur qui ne reconnaît rien. Deux pannes
-            // très différentes, au même symptôme.
+            // The captured level is logged with every dictation, not only in
+            // the diagnostic mode. Without it, "zero characters" cannot be
+            // diagnosed: there is no telling a microphone that hears nothing
+            // from an engine that recognises nothing. Two very different
+            // faults, with the same symptom.
             double peak = AudioLevel.Peak(audio.Wav.AsSpan(WavFile.HeaderSize));
 
             _log.Write(
@@ -237,14 +236,14 @@ internal sealed class TrayContext : ApplicationContext
 
             if (result.Text.Length > 0)
             {
-                // Ramène la fenêtre où l'utilisateur parlait, si elle n'est
-                // plus au premier plan. Sans effet si elle a disparu, ou si
-                // Windows refuse le changement : on insère quand même, dans
-                // la fenêtre courante, plutôt que de perdre la dictée.
+                // Brings back the window the user was speaking into, if it is
+                // no longer in the foreground. Does nothing if it has vanished,
+                // or if Windows refuses the change: we insert anyway, into the
+                // current window, rather than lose the dictation.
                 _target?.Restore();
 
-                // De retour sur le fil d'interface grâce à ConfigureAwait(true) :
-                // le presse-papiers exige un fil STA initialisé pour OLE.
+                // Back on the interface thread thanks to ConfigureAwait(true):
+                // the clipboard requires an STA thread initialised for OLE.
                 TextInjector.Insert(result.Text, _settings.Insertion);
             }
         }

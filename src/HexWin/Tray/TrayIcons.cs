@@ -5,17 +5,17 @@ using System.Runtime.InteropServices;
 namespace HexWin.Tray;
 
 /// <summary>
-/// Dessine les icônes de la barre système, une par état.
+/// Draws the tray icons, one per state.
 ///
-/// Elles sont produites par le programme plutôt que livrées en fichiers : ce
-/// sont des pastilles de couleur, et les embarquer comme ressources
-/// n'apporterait rien qu'un fichier binaire de plus à versionner.
+/// They are produced by the program rather than shipped as files: they are
+/// coloured dots, and embedding them as resources would add nothing but one
+/// more binary file to version.
 ///
-/// L'état doit se lire d'un coup d'œil, à seize pixels de côté et sans
-/// couleur fiable — la barre système peut être claire ou sombre. D'où des
-/// teintes franchement distinctes plutôt que des nuances.
+/// The state has to be readable at a glance, at sixteen pixels across and with
+/// no reliable background — the tray can be light or dark. Hence plainly
+/// distinct hues rather than shades.
 /// </summary>
-[ExcludeFromCodeCoverage(Justification = "Coquille GDI+ : produit des ressources graphiques du système.")]
+[ExcludeFromCodeCoverage(Justification = "GDI+ shell: produces graphical resources of the system.")]
 internal sealed partial class TrayIcons : IDisposable
 {
     private const int Size = 32;
@@ -24,9 +24,9 @@ internal sealed partial class TrayIcons : IDisposable
 
     public TrayIcons()
     {
-        _icons[DictationState.Loading] = Build(Color.FromArgb(134, 142, 150));      // gris
-        _icons[DictationState.Idle] = Build(Color.FromArgb(25, 113, 194));          // bleu
-        _icons[DictationState.Recording] = Build(Color.FromArgb(224, 49, 49));      // rouge
+        _icons[DictationState.Loading] = Build(Color.FromArgb(134, 142, 150));      // grey
+        _icons[DictationState.Idle] = Build(Color.FromArgb(25, 113, 194));          // blue
+        _icons[DictationState.Recording] = Build(Color.FromArgb(224, 49, 49));      // red
         _icons[DictationState.Transcribing] = Build(Color.FromArgb(232, 89, 12));   // orange
         _icons[DictationState.Failed] = Build(Color.FromArgb(64, 64, 64), cross: true);
     }
@@ -55,8 +55,8 @@ internal sealed partial class TrayIcons : IDisposable
 
         try
         {
-            // Icon.FromHandle ne s'approprie pas la poignée : on la duplique
-            // pour pouvoir libérer l'originale sans invalider l'icône.
+            // Icon.FromHandle does not take ownership of the handle: we clone
+            // it so the original can be freed without invalidating the icon.
             using var temporary = Icon.FromHandle(handle);
             return (Icon)temporary.Clone();
         }

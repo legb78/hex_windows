@@ -5,10 +5,10 @@ using Xunit;
 namespace HexWin.Tests.Transcription;
 
 /// <summary>
-/// Ces tests chargent réellement ONNX Runtime et transcrivent un vrai fichier.
-/// Ils sont exclus de la CI — le modèle pèse 578 Mo et les minutes Windows
-/// sont facturées double — mais restent le seul moyen de vérifier que la
-/// bibliothèque native se charge et que la chaîne complète fonctionne.
+/// These tests really do load ONNX Runtime and transcribe a real file. They
+/// are excluded from CI — the model weighs 578 MB and Windows minutes bill at
+/// double — but they remain the only way to check that the native library
+/// loads and that the whole chain works.
 ///
 ///     .\scripts\get-model.ps1
 ///     dotnet test --filter Category=Integration
@@ -21,7 +21,7 @@ public class ParakeetEngineIntegrationTests
     private static string ModelPath =>
         ModelLocator.Resolve(ModelDirectory, AppContext.BaseDirectory)
         ?? throw new InvalidOperationException(
-            @"Modèle absent. Lancez : .\scripts\get-model.ps1");
+            @"Model absent. Run: .\scripts\get-model.ps1");
 
     private static string FixturePath =>
         Path.Combine(AppContext.BaseDirectory, "Fixtures", "bonjour-fr.wav");
@@ -29,7 +29,7 @@ public class ParakeetEngineIntegrationTests
     private static ParakeetEngine Load() => ParakeetEngine.Load(ModelPath, "cpu", 4);
 
     [ModelRequiredFact]
-    public async Task Un_enregistrement_francais_est_transcrit()
+    public async Task A_French_recording_is_transcribed()
     {
         using ParakeetEngine engine = Load();
 
@@ -41,11 +41,11 @@ public class ParakeetEngineIntegrationTests
     }
 
     [ModelRequiredFact]
-    public async Task Le_francais_est_reconnu_sans_qu_on_ait_a_le_preciser()
+    public async Task French_is_recognised_without_being_told()
     {
-        // Parakeet v3 identifie seul la langue parmi les 25 qu'il couvre.
-        // C'est ce qui a fait disparaître le réglage « langue » et la bascule
-        // FR/EN qui était prévue au menu.
+        // Parakeet v3 works out the language by itself among the 25 it covers.
+        // That is what did away with the "language" setting and the FR/EN
+        // toggle that had been planned for the menu.
         using ParakeetEngine engine = Load();
 
         await using FileStream wav = File.OpenRead(FixturePath);
@@ -55,12 +55,12 @@ public class ParakeetEngineIntegrationTests
     }
 
     [ModelRequiredFact]
-    public async Task Une_dictee_courte_reste_sous_la_demi_seconde()
+    public async Task A_short_dictation_stays_under_half_a_second()
     {
-        // La raison d'être de la bascule depuis Whisper : sur ce même
-        // enregistrement de 5 s, Whisper demandait 2,3 s. Ce seuil est
-        // volontairement large pour ne pas rendre le test instable sur une
-        // machine chargée, tout en détectant une régression franche.
+        // The reason for switching away from Whisper: on this same 5 s
+        // recording, Whisper needed 2.3 s. The threshold is deliberately
+        // generous so the test does not turn flaky on a loaded machine, while
+        // still catching an outright regression.
         using ParakeetEngine engine = Load();
         await engine.WarmUpAsync();
 
@@ -69,11 +69,11 @@ public class ParakeetEngineIntegrationTests
 
         Assert.True(
             result.Duration < TimeSpan.FromSeconds(1),
-            $"Transcription en {result.Duration.TotalSeconds:F2} s, attendu moins d'une seconde.");
+            $"Transcribed in {result.Duration.TotalSeconds:F2} s, expected under a second.");
     }
 
     [ModelRequiredFact]
-    public async Task Le_prechauffage_ne_leve_pas()
+    public async Task Warming_up_does_not_throw()
     {
         using ParakeetEngine engine = Load();
 
@@ -81,10 +81,10 @@ public class ParakeetEngineIntegrationTests
     }
 
     [ModelRequiredFact]
-    public async Task Un_enregistrement_silencieux_ne_produit_aucun_texte()
+    public async Task A_silent_recording_produces_no_text()
     {
-        // Cas fréquent : la touche est relâchée avant d'avoir parlé. Rien ne
-        // doit être inséré.
+        // A common case: the key is released before anything was said. Nothing
+        // must be inserted.
         using ParakeetEngine engine = Load();
 
         using var silence = new MemoryStream(WavFile.CreateSilence(TimeSpan.FromSeconds(1)));
@@ -94,7 +94,7 @@ public class ParakeetEngineIntegrationTests
     }
 
     [Fact]
-    public void Un_modele_absent_donne_un_message_actionnable()
+    public void A_missing_model_gives_an_actionable_message()
     {
         FileNotFoundException error = Assert.Throws<FileNotFoundException>(
             () => ParakeetEngine.Load(@"C:\modele\qui\n\existe\pas", "cpu", 4));

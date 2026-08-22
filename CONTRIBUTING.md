@@ -38,12 +38,17 @@ teste sans Windows.
 ## Les tests
 
 ```powershell
-dotnet test                                  # unitaires, ce que lance la CI
-dotnet test --filter Category=Integration    # charge réellement le moteur
+dotnet test                                  # everything
+dotnet test --filter Category=Integration    # the engine ones only
 ```
 
-Les tests d'intégration sont exclus de la CI : le modèle pèse 578 Mo. Lancez-les
-localement si vous touchez au moteur.
+The integration tests load the real engine. Without the model on disk they
+**skip themselves with a message** rather than fail, so a fresh clone gives a
+green run: no one has to tell real failures apart from a missing 578 MB
+download. Fetch the model and they run for real.
+
+CI excludes them up front — a runner has no reason to spend minutes discovering
+they would skip.
 
 Un test doit expliquer **pourquoi** le cas compte, pas seulement ce qu'il
 vérifie. Un commentaire d'une ligne rappelant la situation réelle qu'il couvre

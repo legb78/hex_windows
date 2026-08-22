@@ -28,7 +28,7 @@ public class ParakeetEngineIntegrationTests
 
     private static ParakeetEngine Load() => ParakeetEngine.Load(ModelPath, "cpu", 4);
 
-    [Fact]
+    [ModelRequiredFact]
     public async Task Un_enregistrement_francais_est_transcrit()
     {
         using ParakeetEngine engine = Load();
@@ -40,7 +40,7 @@ public class ParakeetEngineIntegrationTests
         Assert.True(result.Duration > TimeSpan.Zero);
     }
 
-    [Fact]
+    [ModelRequiredFact]
     public async Task Le_francais_est_reconnu_sans_qu_on_ait_a_le_preciser()
     {
         // Parakeet v3 identifie seul la langue parmi les 25 qu'il couvre.
@@ -54,7 +54,7 @@ public class ParakeetEngineIntegrationTests
         Assert.Contains("Bonjour", result.Text, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
+    [ModelRequiredFact]
     public async Task Une_dictee_courte_reste_sous_la_demi_seconde()
     {
         // La raison d'être de la bascule depuis Whisper : sur ce même
@@ -72,7 +72,7 @@ public class ParakeetEngineIntegrationTests
             $"Transcription en {result.Duration.TotalSeconds:F2} s, attendu moins d'une seconde.");
     }
 
-    [Fact]
+    [ModelRequiredFact]
     public async Task Le_prechauffage_ne_leve_pas()
     {
         using ParakeetEngine engine = Load();
@@ -80,7 +80,7 @@ public class ParakeetEngineIntegrationTests
         await engine.WarmUpAsync();
     }
 
-    [Fact]
+    [ModelRequiredFact]
     public async Task Un_enregistrement_silencieux_ne_produit_aucun_texte()
     {
         // Cas fréquent : la touche est relâchée avant d'avoir parlé. Rien ne

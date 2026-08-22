@@ -6,6 +6,7 @@
     <UseWindowsForms>true</UseWindowsForms>
 
     <IsPackable>false</IsPackable>
+
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 

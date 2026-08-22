@@ -66,13 +66,44 @@ internal sealed partial class TextInjector
         // copy: true conserve les données après la fin du processus. Sans ce
         // drapeau, le texte disparaîtrait du presse-papiers dès la fermeture
         // de l'application, et l'utilisateur ne pourrait plus le recoller.
-        Clipboard.SetDataObject(text, copy: true);
+        Clipboard.SetDataObject(BuildPrivateTransfer(text), copy: true);
         SendPasteShortcut();
 
         // La restauration est différée : Ctrl+V est asynchrone, l'application
         // cible n'a pas encore lu le presse-papiers au retour de SendInput.
         RestoreAfterDelay(previous);
     }
+
+    /// <summary>
+    /// Emballe le texte en demandant à Windows de ne pas le conserver.
+    ///
+    /// <para>Un simple <c>SetDataObject(text)</c> place la dictée dans
+    /// l'historique du presse-papiers — celui de <c>Win+V</c>, actif par défaut
+    /// sur beaucoup de machines — où elle reste consultable longtemps après
+    /// l'insertion. Et si la synchronisation entre appareils est activée, elle
+    /// part chez Microsoft : une application qui annonce ne rien envoyer sur le
+    /// réseau ne peut pas se le permettre.</para>
+    ///
+    /// <para>Les trois formats ci-dessous sont la façon documentée de s'en
+    /// exclure, celle qu'utilisent les gestionnaires de mots de passe. Ils
+    /// attendent des valeurs binaires : un entier 32 bits nul pour les deux
+    /// premiers, une présence sans contenu pour le troisième.</para>
+    /// </summary>
+    private static DataObject BuildPrivateTransfer(string text)
+    {
+        var transfer = new DataObject();
+        transfer.SetText(text);
+
+        transfer.SetData(ClipboardHistoryFormat, new byte[] { 0, 0, 0, 0 });
+        transfer.SetData(CloudClipboardFormat, new byte[] { 0, 0, 0, 0 });
+        transfer.SetData(MonitorProcessingFormat, new byte[] { 0 });
+
+        return transfer;
+    }
+
+    private const string ClipboardHistoryFormat = "CanIncludeInClipboardHistory";
+    private const string CloudClipboardFormat = "CanUploadToCloudClipboard";
+    private const string MonitorProcessingFormat = "ExcludeClipboardContentFromMonitorProcessing";
 
     /// <summary>
     /// Réécrit le contenu sauvegardé après un court délai, sur le fil courant.
@@ -88,11 +119,11 @@ internal sealed partial class TextInjector
     /// </summary>
     private static void RestoreAfterDelay(ClipboardSnapshot previous)
     {
-        if (!previous.HasContent)
-        {
-            return;
-        }
-
+        // Appelé même quand rien n'avait pu être capturé : dans ce cas Restore
+        // vide le presse-papiers, au lieu d'y laisser le texte dicté. Une
+        // première version sortait ici quand l'instantané était vide, ce qui
+        // court-circuitait précisément ce vidage — une garde en double, à deux
+        // niveaux, dont l'une annulait l'autre.
         Thread.Sleep(ClipboardRestoreDelay);
         previous.Restore();
     }

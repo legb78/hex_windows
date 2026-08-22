@@ -5,26 +5,25 @@ using SherpaOnnx;
 
 namespace HexWin.Transcription;
 
-/// <summary>Ce qu'une transcription a produit, et à quel prix.</summary>
-/// <param name="Text">Texte nettoyé, prêt à être inséré. Vide si rien d'exploitable.</param>
-/// <param name="Duration">Temps de calcul, pour mesurer la latence ressentie.</param>
+/// <summary>What a transcription produced, and at what cost.</summary>
+/// <param name="Text">Cleaned text, ready to insert. Empty if nothing usable.</param>
+/// <param name="Duration">Compute time, to measure the latency as felt.</param>
 public readonly record struct TranscriptionResult(string Text, TimeSpan Duration);
 
 /// <summary>
-/// Reconnaissance vocale locale par Parakeet TDT v3 (NVIDIA), exécuté via
-/// sherpa-onnx et ONNX Runtime.
+/// Local speech recognition by Parakeet TDT v3 (NVIDIA), run through
+/// sherpa-onnx and ONNX Runtime.
 ///
-/// C'est le moteur qu'utilise Hex sur macOS. Le choix tient à son
-/// architecture : Parakeet est un <i>transducteur</i>, là où Whisper est un
-/// encodeur-décodeur autorégressif qui produit son texte token par token.
-/// Ce décodage séquentiel impose un coût fixe par transcription — mesuré à
-/// 1,4 s sur cette machine — indépendant de la longueur de l'enregistrement,
-/// et donc particulièrement pénalisant sur les dictées courtes, qui sont le
-/// cas d'usage normal.
+/// This is the engine Hex uses on macOS. The choice comes down to its
+/// architecture: Parakeet is a <i>transducer</i>, where Whisper is an
+/// autoregressive encoder-decoder producing its text token by token. That
+/// sequential decoding imposes a fixed cost per transcription — measured at
+/// 1.4 s on this machine — independent of the length of the recording, and so
+/// especially punishing on short dictations, which are the normal use.
 ///
-/// Comme pour Whisper, le modèle est chargé une seule fois et reste résident.
+/// As with Whisper, the model is loaded once and stays resident.
 /// </summary>
-[ExcludeFromCodeCoverage(Justification = "Couverte par les tests d'intégration, qui chargent le moteur natif et sont exclus de la CI.")]
+[ExcludeFromCodeCoverage(Justification = "Covered by the integration tests, which load the native engine and are excluded from CI.")]
 public sealed class ParakeetEngine : IDisposable
 {
     private const int FeatureDimension = 80;
@@ -38,27 +37,22 @@ public sealed class ParakeetEngine : IDisposable
     }
 
     /// <summary>
-    /// Fournisseur ONNX Runtime réellement demandé. Journalisé pour la même
-    /// raison que pour Whisper : un repli silencieux sur le processeur
-    /// transcrit tout aussi correctement, seule la durée trahit la différence.
+    /// ONNX Runtime provider actually requested. Logged for the same reason as
+    /// with Whisper: a silent fallback to the processor transcribes just as
+    /// correctly, and only the duration betrays the difference.
     /// </summary>
     public string LoadedRuntime { get; }
 
     /// <summary>
-    /// Charge le modèle depuis son dossier. Contrairement à Whisper, Parakeet
-    /// se présente en plusieurs fichiers — encodeur, décodeur, joiner et
-    /// vocabulaire — d'où un dossier plutôt qu'un fichier unique.
-    /// </summary>
-    /// <exception cref="FileNotFoundException">Un fichier du modèle manque.</exception>
-    /// <summary>
-    /// Vérifie que le modèle est complet, sans rien charger en mémoire.
+    /// Checks that the model is complete, without loading anything into
+    /// memory.
     ///
-    /// Permet de signaler un modèle absent ou incomplet dès le démarrage, y
-    /// compris quand le chargement lui-même est différé à la première dictée :
-    /// découvrir le problème au moment où l'utilisateur parle serait le pire
-    /// moment, sa phrase étant alors déjà perdue.
+    /// Lets a missing or incomplete model be reported at startup, including
+    /// when loading itself is deferred to the first dictation: discovering the
+    /// problem while the user is speaking would be the worst possible moment,
+    /// their sentence being already lost by then.
     /// </summary>
-    /// <exception cref="FileNotFoundException">Un fichier du modèle manque.</exception>
+    /// <exception cref="FileNotFoundException">A model file is missing.</exception>
     public static void Validate(string modelDirectory)
     {
         foreach (string file in RequiredFiles)
@@ -70,6 +64,12 @@ public sealed class ParakeetEngine : IDisposable
     private static readonly string[] RequiredFiles =
         ["encoder.int8.onnx", "decoder.int8.onnx", "joiner.int8.onnx", "tokens.txt"];
 
+    /// <summary>
+    /// Loads the model from its folder. Unlike Whisper, Parakeet comes as
+    /// several files — encoder, decoder, joiner and vocabulary — hence a
+    /// folder rather than a single file.
+    /// </summary>
+    /// <exception cref="FileNotFoundException">A model file is missing.</exception>
     public static ParakeetEngine Load(string modelDirectory, string provider, int threads)
     {
         string encoder = RequireFile(modelDirectory, "encoder.int8.onnx");
@@ -97,12 +97,12 @@ public sealed class ParakeetEngine : IDisposable
     }
 
     /// <summary>
-    /// Transcrit un flux WAV 16 kHz mono.
+    /// Transcribes a 16 kHz mono WAV stream.
     ///
-    /// Aucune langue n'est à préciser : Parakeet v3 reconnaît seul laquelle de
-    /// ses 25 langues européennes est parlée. Le réglage « langue » de la
-    /// configuration disparaît donc, ainsi que la bascule FR/EN qui était
-    /// prévue dans le menu.
+    /// No language needs to be given: Parakeet v3 works out on its own which
+    /// of its 25 European languages is being spoken. The "language" setting
+    /// therefore disappears from the configuration, along with the FR/EN
+    /// toggle that had been planned for the menu.
     /// </summary>
     public async Task<TranscriptionResult> TranscribeAsync(
         Stream wav,
@@ -120,16 +120,16 @@ public sealed class ParakeetEngine : IDisposable
 
         float[] samples = PcmConverter.FromWav(buffer.GetBuffer().AsSpan(0, (int)buffer.Length));
 
-        // Le décodage est synchrone et gourmand en calcul : le sortir du fil
-        // appelant évite de figer l'interface pendant la transcription.
+        // Decoding is synchronous and compute-hungry: moving it off the
+        // calling thread keeps the interface from freezing during
+        // transcription.
         return await Task.Run(() => Decode(samples), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Fait tourner le moteur à vide sur un silence très court, pour absorber
-    /// le coût de la première inférence : allocation des tampons ONNX et
-    /// choix des noyaux de calcul. Sinon, c'est la première dictée de
-    /// l'utilisateur qui le paierait.
+    /// Runs the engine on a very short silence, to absorb the cost of the
+    /// first inference: allocating the ONNX buffers and picking the compute
+    /// kernels. Otherwise the first dictation of the user would pay for it.
     /// </summary>
     public async Task WarmUpAsync(CancellationToken cancellationToken = default)
     {
@@ -141,7 +141,7 @@ public sealed class ParakeetEngine : IDisposable
         }
         catch (OperationCanceledException)
         {
-            // Fermeture pendant le préchauffage : sans conséquence.
+            // Shutting down during warm-up: no consequence.
         }
     }
 

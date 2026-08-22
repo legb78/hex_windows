@@ -1,24 +1,24 @@
 namespace HexWin.Transcription;
 
 /// <summary>
-/// Retrouve le fichier modèle à partir du chemin inscrit dans settings.json.
+/// Finds the model file from the path written in settings.json.
 ///
-/// Une fois l'application publiée, <c>models/</c> est posé à côté de
-/// l'exécutable et la recherche s'arrête immédiatement. Pendant le
-/// développement en revanche, l'exécutable vit au fond de
-/// <c>bin/x64/Release/net9.0-windows/</c> alors que <c>models/</c> est à la
-/// racine du dépôt : sans remontée dans l'arborescence, il faudrait dupliquer
-/// 1,6 Go à chaque configuration de compilation.
+/// Once the application is published, <c>models/</c> sits next to the
+/// executable and the search stops immediately. During development, however,
+/// the executable lives deep inside <c>bin/x64/Release/net9.0-windows/</c>
+/// while <c>models/</c> is at the root of the repository: without walking up
+/// the tree, 1.6 GB would have to be duplicated for every build configuration.
 ///
-/// La recherche est passée en paramètre (<paramref name="fileExists"/>) pour
-/// que la logique reste testable sans toucher au disque.
+/// The lookup is passed in (<paramref name="fileExists"/>) so that the logic
+/// stays testable without touching the disk.
 /// </summary>
 public static class ModelLocator
 {
     private const int DefaultMaxAscent = 6;
 
     /// <summary>
-    /// Rend le chemin absolu du modèle, ou <c>null</c> s'il reste introuvable.
+    /// Returns the absolute path of the model, or <c>null</c> if it stays out
+    /// of reach.
     /// </summary>
     public static string? Resolve(
         string configuredPath,
@@ -30,7 +30,7 @@ public static class ModelLocator
         ArgumentException.ThrowIfNullOrWhiteSpace(baseDirectory);
         ArgumentNullException.ThrowIfNull(fileExists);
 
-        // Un chemin absolu est pris au mot : l'utilisateur sait ce qu'il veut.
+        // An absolute path is taken at its word: the user knows what they want.
         if (Path.IsPathRooted(configuredPath))
         {
             return fileExists(configuredPath) ? configuredPath : null;
@@ -54,9 +54,9 @@ public static class ModelLocator
     }
 
     /// <summary>
-    /// Variante branchée sur le vrai système de fichiers. Le modèle Parakeet
-    /// est un dossier — encodeur, décodeur, joiner et vocabulaire — d'où
-    /// Directory.Exists plutôt que File.Exists.
+    /// Variant wired to the real file system. The Parakeet model is a folder —
+    /// encoder, decoder, joiner and vocabulary — hence Directory.Exists rather
+    /// than File.Exists.
     /// </summary>
     public static string? Resolve(string configuredPath, string baseDirectory) =>
         Resolve(configuredPath, baseDirectory, Directory.Exists);

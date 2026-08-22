@@ -147,11 +147,13 @@ dotnet build -c Release     # no warnings tolerated
 dotnet test                 # unit tests
 ```
 
-Integration tests load the real engine and do not run in CI:
+`dotnet test` runs everything. The integration tests load the real engine, so
+they **skip themselves with a message** when the model has not been downloaded
+yet — a fresh clone gives you a green run and a count of what was skipped,
+rather than failures that say nothing about the code.
 
-```powershell
-dotnet test --filter Category=Integration
-```
+Download the model and they run for real. CI excludes them up front, since a
+runner has no reason to spend minutes discovering they would skip.
 
 ### How the code is organised
 

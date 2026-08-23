@@ -10,12 +10,12 @@ using HexWin.Tray;
 
 namespace HexWin;
 
-[ExcludeFromCodeCoverage(Justification = "Point d'entrée : aiguillage vers les modes, sans logique propre.")]
+[ExcludeFromCodeCoverage(Justification = "Entry point: routes to the modes, with no logic of its own.")]
 internal static class Program
 {
     /// <summary>
-    /// Point d'entrée. STAThread est exigé par Windows Forms et par les API
-    /// de presse-papiers utilisées pour l'insertion du texte.
+    /// Entry point. STAThread is required by Windows Forms and by the
+    /// clipboard APIs used to insert the text.
     /// </summary>
     [STAThread]
     private static int Main(string[] args)
@@ -61,13 +61,13 @@ internal static class Program
     }
 
     /// <summary>
-    /// Mode normal : l'application vit dans la barre système et n'a aucune
-    /// fenêtre.
+    /// Normal mode: the application lives in the system tray and has no
+    /// window.
     /// </summary>
     private static int RunTrayApplication()
     {
-        // Deux instances installeraient deux hooks clavier sur le même
-        // raccourci, et chaque dictée serait insérée en double.
+        // Two instances would install two keyboard hooks on the same shortcut,
+        // and every dictation would be inserted twice.
         using var singleInstance = new Mutex(initiallyOwned: true, @"Local\HexWin", out bool isFirst);
 
         if (!isFirst)
@@ -94,10 +94,10 @@ internal static class Program
 
         ApplicationConfiguration.Initialize();
 
-        // Le contexte de synchronisation Windows Forms n'est installé qu'au
-        // démarrage de la boucle de messages, donc trop tard pour le
-        // constructeur de TrayContext — qui en a besoin pour ramener la
-        // transcription sur le fil d'interface. On l'installe donc à la main.
+        // The Windows Forms synchronisation context is only installed when the
+        // message loop starts, so too late for the TrayContext constructor —
+        // which needs it to bring the transcription back to the interface
+        // thread. So we install it by hand.
         SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
 
         try
@@ -108,9 +108,9 @@ internal static class Program
         }
         catch (Exception ex)
         {
-            // Une application sans fenêtre qui disparaît en silence est
-            // indiagnosticable. La trace écrite ici est parfois le seul
-            // indice exploitable.
+            // A windowless application that vanishes in silence cannot be
+            // diagnosed. The trace written here is sometimes the only usable
+            // clue.
             ReportFatal(ex);
             return 1;
         }
@@ -138,11 +138,11 @@ internal static class Program
     }
 
     /// <summary>
-    /// Mode de diagnostic de l'insertion : attend quelques secondes, le temps
-    /// de placer le curseur dans l'application visée, puis y insère un texte.
+    /// Insertion diagnostic mode: waits a few seconds, long enough to place
+    /// the cursor in the target application, then inserts text into it.
     ///
-    /// Le délai est indispensable : sans lui, le texte partirait dans la
-    /// console qui a lancé la commande, ce qui ne prouverait rien.
+    /// The delay is indispensable: without it the text would land in the
+    /// console that launched the command, which would prove nothing.
     /// </summary>
     private static int InjectText(string text, string? modeOption, string? delayOption)
     {
@@ -167,10 +167,10 @@ internal static class Program
             Console.Write($" {remaining}");
             Thread.Sleep(TimeSpan.FromSeconds(1));
 
-            // La fenêtre est mémorisée après la première seconde, le temps
-            // que le curseur soit placé. Reproduit ce que fait l'application :
-            // capturer la cible tôt, et y revenir juste avant d'insérer, pour
-            // qu'un changement de fenêtre entre-temps ne détourne pas le texte.
+            // The window is remembered after the first second, giving time for
+            // the cursor to be placed. Mirrors what the application does:
+            // capture the target early and return to it just before inserting,
+            // so a window change in between cannot divert the text.
             if (target is null && (target = TargetWindow.Capture()) is not null)
             {
                 Console.WriteLine();
@@ -187,8 +187,8 @@ internal static class Program
 
         TextInjector.Insert(text, mode);
 
-        // Laisse au collage le temps d'aboutir et au presse-papiers celui
-        // d'être restauré avant que le processus ne se termine.
+        // Gives the paste time to land and the clipboard time to be restored
+        // before the process ends.
         Thread.Sleep(TimeSpan.FromSeconds(1));
 
         Console.WriteLine("Insertion demandée.");
@@ -196,13 +196,13 @@ internal static class Program
     }
 
     /// <summary>
-    /// Mode de diagnostic du raccourci : installe le hook et rend compte de
-    /// chaque déclenchement, sans enregistrer ni transcrire.
+    /// Shortcut diagnostic mode: installs the hook and reports every trigger,
+    /// without recording or transcribing.
     ///
-    /// C'est le seul moyen de vérifier cette couche : Windows marque toute
-    /// frappe injectée par un programme, et le hook les ignore délibérément
-    /// pour ne pas réagir à ce qu'il produit lui-même. Il faut donc un
-    /// véritable appui de doigt.
+    /// This is the only way to check that layer: Windows marks every keystroke
+    /// injected by a program, and the hook deliberately ignores those so as not
+    /// to react to what it produces itself. A real finger press is therefore
+    /// required.
     /// </summary>
     private static int WatchHotkey()
     {
@@ -238,22 +238,22 @@ internal static class Program
             Application.ExitThread();
         };
 
-        // Un hook bas niveau n'est alimenté que par une boucle de messages :
-        // sans elle, le rappel ne serait jamais appelé.
+        // A low-level hook is only fed by a message loop: without one, the
+        // callback would never be called.
         Application.Run();
 
         return 0;
     }
 
     /// <summary>
-    /// Mode de diagnostic du micro : enregistre quelques secondes, écrit le
-    /// WAV et mesure l'amplitude obtenue.
+    /// Microphone diagnostic mode: records for a few seconds, writes the WAV
+    /// and measures the amplitude obtained.
     ///
-    /// La mesure est le point important. Un micro coupé, débranché ou interdit
-    /// par les réglages de confidentialité produit un fichier parfaitement
-    /// valide, de la bonne durée, et totalement silencieux — que le moteur
-    /// transcrit ensuite en une phrase inventée. Sans niveau affiché, on
-    /// chercherait la panne du côté de la transcription.
+    /// The measurement is the point. A muted, unplugged or privacy-blocked
+    /// microphone produces a perfectly valid file, of the right duration, and
+    /// entirely silent — which the engine then transcribes as an invented
+    /// sentence. With no level shown, the fault would be hunted on the
+    /// transcription side.
     /// </summary>
     private static int RecordToFile(string outputPath, string? secondsOption)
     {
@@ -309,16 +309,16 @@ internal static class Program
     }
 
     /// <summary>
-    /// Mode de diagnostic : transcrit un WAV et rend compte du moteur
-    /// réellement utilisé et du temps passé.
+    /// Diagnostic mode: transcribes a WAV and reports the engine actually used
+    /// and the time it took.
     ///
-    /// C'est l'outil de dépannage principal du projet. Il valide toute la
-    /// chaîne de transcription sans dépendre du micro ni du raccourci clavier : quand
-    /// la dictée ne fonctionne pas, c'est par là qu'on commence pour savoir
-    /// de quel côté chercher.
+    /// The main troubleshooting tool of the project. It exercises the whole
+    /// transcription chain without depending on the microphone or the keyboard
+    /// shortcut: when dictation does not work, this is where to start in order
+    /// to know which side to look at.
     ///
-    /// Les options --model et --provider servent à comparer deux
-    /// configurations sur le même enregistrement.
+    /// The --model and --provider options serve to compare two configurations
+    /// on the same recording.
     /// </summary>
     private static int TranscribeFile(string wavPath, string? modelOverride, string? providerOverride)
     {
@@ -341,8 +341,8 @@ internal static class Program
             settings.Provider = providerOverride;
         }
 
-        // Réapplique les garde-fous : une option de ligne de commande passe
-        // par les mêmes validations que le fichier de configuration.
+        // Reapplies the guards: a command-line option goes through the same
+        // validation as the configuration file.
         settings.Normalize();
 
         string? modelPath = ModelLocator.Resolve(settings.ModelPath, baseDirectory);
@@ -404,8 +404,7 @@ internal static class Program
         Console.WriteLine("      transcrit un fichier et affiche le texte, le moteur et la durée");
         Console.WriteLine();
         Console.WriteLine("      --model    remplace le modèle de settings.json");
-        Console.WriteLine("      --provider remplace le fournisseur de calcul : cpu, directml, cuda");
-        Console.WriteLine("");
+        Console.WriteLine("      --provider remplace le fournisseur de calcul (cpu uniquement)");
         Console.WriteLine();
         Console.WriteLine("  HexWin.exe --inject \"du texte\" [--mode Paste|Type] [--delay 4]");
         Console.WriteLine("      insère un texte dans la fenêtre active après un délai");

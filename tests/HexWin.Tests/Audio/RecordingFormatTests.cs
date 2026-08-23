@@ -6,10 +6,10 @@ namespace HexWin.Tests.Audio;
 public class RecordingFormatTests
 {
     [Fact]
-    public void Le_format_est_celui_qu_exige_le_modele()
+    public void The_format_is_the_one_the_model_requires()
     {
-        // Ces trois valeurs ne sont pas un choix : le modèle n'accepte que
-        // du 16 kHz mono 16 bits. Les changer casserait la transcription.
+        // These three values are not a choice: the model accepts nothing but
+        // 16 kHz mono 16-bit. Changing them would break transcription.
         Assert.Equal(16_000, RecordingFormat.SampleRate);
         Assert.Equal(1, RecordingFormat.Channels);
         Assert.Equal(16, RecordingFormat.BitsPerSample);
@@ -21,7 +21,7 @@ public class RecordingFormatTests
     [InlineData(32_000, 1_000)]
     [InlineData(16_000, 500)]
     [InlineData(3_200, 100)]
-    public void Une_quantite_d_echantillons_se_traduit_en_duree(long bytes, int expectedMilliseconds)
+    public void A_quantity_of_samples_converts_to_a_duration(long bytes, int expectedMilliseconds)
     {
         Assert.Equal(
             TimeSpan.FromMilliseconds(expectedMilliseconds),
@@ -32,7 +32,7 @@ public class RecordingFormatTests
     [InlineData(1_000, 32_000)]
     [InlineData(500, 16_000)]
     [InlineData(0, 0)]
-    public void Une_duree_se_traduit_en_quantite_d_echantillons(int milliseconds, long expectedBytes)
+    public void A_duration_converts_to_a_quantity_of_samples(int milliseconds, long expectedBytes)
     {
         Assert.Equal(
             expectedBytes,
@@ -40,18 +40,18 @@ public class RecordingFormatTests
     }
 
     [Fact]
-    public void La_conversion_tombe_toujours_sur_un_echantillon_complet()
+    public void The_conversion_always_lands_on_a_whole_sample()
     {
-        // Un échantillon 16 bits occupe deux octets. En couper un en deux
-        // décalerait tout le flux suivant d'un octet, et le signal
-        // deviendrait du bruit.
+        // A 16-bit sample takes two bytes. Cutting one in half would shift the
+        // whole following stream by one byte, and the signal would turn into
+        // noise.
         long bytes = RecordingFormat.BytesFor(TimeSpan.FromMilliseconds(1.5));
 
         Assert.Equal(0, bytes % RecordingFormat.BytesPerSample);
     }
 
     [Fact]
-    public void Un_aller_retour_conserve_la_duree()
+    public void A_round_trip_preserves_the_duration()
     {
         var original = TimeSpan.FromSeconds(2.5);
 
@@ -59,7 +59,7 @@ public class RecordingFormatTests
     }
 
     [Fact]
-    public void Les_valeurs_negatives_sont_refusees()
+    public void Negative_values_are_refused()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => RecordingFormat.DurationOf(-1));
         Assert.Throws<ArgumentOutOfRangeException>(

@@ -11,10 +11,10 @@ public class IdlePolicyTests
     [InlineData(0)]
     [InlineData(-1)]
     [InlineData(-60)]
-    public void Un_delai_nul_ou_negatif_garde_le_modele_resident(int minutes)
+    public void A_zero_or_negative_delay_keeps_the_model_resident(int minutes)
     {
-        // C'est ainsi qu'on désactive la libération : le modèle reste chargé,
-        // et la réponse reste instantanée en toutes circonstances.
+        // This is how releasing is switched off: the model stays loaded, and
+        // the response stays instant in every circumstance.
         IdlePolicy policy = IdlePolicy.FromMinutes(minutes);
 
         Assert.False(policy.IsEnabled);
@@ -22,7 +22,7 @@ public class IdlePolicyTests
     }
 
     [Fact]
-    public void Un_delai_positif_active_la_liberation()
+    public void A_positive_delay_enables_releasing()
     {
         Assert.True(FiveMinutes.IsEnabled);
     }
@@ -31,7 +31,7 @@ public class IdlePolicyTests
     [InlineData(0)]
     [InlineData(60)]
     [InlineData(299)]
-    public void En_deca_du_delai_le_modele_reste_charge(int seconds)
+    public void Below_the_delay_the_model_stays_loaded(int seconds)
     {
         Assert.False(FiveMinutes.ShouldUnload(TimeSpan.FromSeconds(seconds), isBusy: false));
     }
@@ -40,34 +40,34 @@ public class IdlePolicyTests
     [InlineData(300)]
     [InlineData(301)]
     [InlineData(86_400)]
-    public void Au_dela_du_delai_le_modele_est_libere(int seconds)
+    public void Past_the_delay_the_model_is_released(int seconds)
     {
         Assert.True(FiveMinutes.ShouldUnload(TimeSpan.FromSeconds(seconds), isBusy: false));
     }
 
     [Fact]
-    public void La_borne_du_delai_est_inclusive()
+    public void The_delay_bound_is_inclusive()
     {
         Assert.True(FiveMinutes.ShouldUnload(TimeSpan.FromMinutes(5), isBusy: false));
     }
 
     [Fact]
-    public void Une_dictee_en_cours_interdit_toute_liberation()
+    public void A_dictation_under_way_forbids_any_release()
     {
-        // Le délai peut tomber pile pendant que l'utilisateur parle. Libérer
-        // à cet instant ferait échouer la transcription qu'il attend — le
-        // pire moment possible.
+        // The deadline can fall exactly while the user is speaking. Releasing
+        // at that moment would fail the transcription they are waiting for —
+        // the worst possible moment.
         Assert.False(FiveMinutes.ShouldUnload(TimeSpan.FromHours(1), isBusy: true));
     }
 
     [Fact]
-    public void La_liberation_reprend_une_fois_la_dictee_terminee()
+    public void Releasing_resumes_once_the_dictation_is_over()
     {
         Assert.True(FiveMinutes.ShouldUnload(TimeSpan.FromHours(1), isBusy: false));
     }
 
     [Fact]
-    public void Le_delai_est_exprime_en_minutes()
+    public void The_delay_is_expressed_in_minutes()
     {
         Assert.Equal(TimeSpan.FromMinutes(5), FiveMinutes.Timeout);
         Assert.Equal(TimeSpan.FromMinutes(30), IdlePolicy.FromMinutes(30).Timeout);

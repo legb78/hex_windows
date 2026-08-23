@@ -4,10 +4,10 @@ using Xunit;
 namespace HexWin.Tests.Input;
 
 /// <summary>
-/// Les cas couverts ici sont tous vécus à l'usage et pénibles à reproduire à
-/// la main : répétition automatique du clavier, relâchement dans le désordre,
-/// touche restée enfoncée après un verrouillage de session. C'est pour les
-/// rendre testables que la décision a été séparée du hook Win32.
+/// Every case covered here happens in real use and is awkward to reproduce by
+/// hand: keyboard auto-repeat, releasing out of order, a key left held after a
+/// locked session. Making them testable is exactly why the deciding was
+/// separated from the Win32 hook.
 /// </summary>
 public class ChordDetectorTests
 {
@@ -20,10 +20,10 @@ public class ChordDetectorTests
 
     private static ChordDetector CtrlWin() => new(["Ctrl", "Win"]);
 
-    // --- Déclenchement nominal -------------------------------------------------
+    // --- Nominal triggering ----------------------------------------------------
 
     [Fact]
-    public void Le_raccourci_complet_demarre_la_dictee()
+    public void The_complete_shortcut_starts_the_dictation()
     {
         ChordDetector detector = CtrlWin();
 
@@ -33,7 +33,7 @@ public class ChordDetectorTests
     }
 
     [Fact]
-    public void Le_relachement_arrete_la_dictee()
+    public void Releasing_stops_the_dictation()
     {
         ChordDetector detector = CtrlWin();
         detector.OnKeyDown(Ctrl);
@@ -44,7 +44,7 @@ public class ChordDetectorTests
     }
 
     [Fact]
-    public void L_ordre_d_appui_est_indifferent()
+    public void The_press_order_does_not_matter()
     {
         ChordDetector detector = CtrlWin();
 
@@ -53,9 +53,9 @@ public class ChordDetectorTests
     }
 
     [Fact]
-    public void Relacher_n_importe_laquelle_des_deux_touches_arrete()
+    public void Releasing_either_of_the_two_keys_stops_it()
     {
-        // L'utilisateur relâche rarement les deux touches simultanément.
+        // Users rarely release both keys at exactly the same instant.
         ChordDetector detector = CtrlWin();
         detector.OnKeyDown(Ctrl);
         detector.OnKeyDown(Win);
@@ -64,24 +64,24 @@ public class ChordDetectorTests
     }
 
     [Fact]
-    public void Les_touches_gauche_et_droite_sont_equivalentes()
+    public void The_left_and_right_keys_are_equivalent()
     {
-        // « Ctrl » désigne les deux touches physiques : l'utilisateur ne
-        // devrait pas avoir à se demander laquelle il a sous les doigts.
+        // "Ctrl" means both physical keys: the user should not have to wonder
+        // which one is under their fingers.
         ChordDetector detector = CtrlWin();
 
         Assert.Equal(ChordAction.None, detector.OnKeyDown(RightCtrl).Action);
         Assert.Equal(ChordAction.Start, detector.OnKeyDown(RightWin).Action);
     }
 
-    // --- Répétition automatique -------------------------------------------------
+    // --- Auto-repeat ------------------------------------------------------------
 
     [Fact]
-    public void La_repetition_automatique_ne_relance_pas_la_dictee()
+    public void Auto_repeat_does_not_restart_the_dictation()
     {
-        // Maintenir une touche envoie des enfoncements en rafale. Sans cette
-        // garde, chaque répétition redémarrerait l'enregistrement à zéro et
-        // la dictée ne contiendrait jamais que le dernier fragment.
+        // Holding a key sends key-downs in bursts. Without this guard, every
+        // repeat would restart the recording from zero and the dictation would
+        // only ever hold the last fragment.
         ChordDetector detector = CtrlWin();
         detector.OnKeyDown(Ctrl);
         detector.OnKeyDown(Win);
@@ -96,10 +96,10 @@ public class ChordDetectorTests
     }
 
     [Fact]
-    public void La_repetition_reste_avalee_si_l_appui_initial_l_etait()
+    public void A_repeat_stays_swallowed_if_the_initial_press_was()
     {
-        // Sinon les répétitions de la touche Windows fuiraient vers le
-        // système pendant toute la dictée.
+        // Otherwise the repeats of the Windows key would leak to the system
+        // for the whole dictation.
         ChordDetector detector = CtrlWin();
         detector.OnKeyDown(Ctrl);
         detector.OnKeyDown(Win);
@@ -107,13 +107,13 @@ public class ChordDetectorTests
         Assert.True(detector.OnKeyDown(Win).Swallow);
     }
 
-    // --- Équilibre de l'avalage -------------------------------------------------
+    // --- Swallowing balance -----------------------------------------------------
 
     [Fact]
-    public void La_touche_qui_complete_le_raccourci_est_avalee()
+    public void The_key_that_completes_the_shortcut_is_swallowed()
     {
-        // C'est ce qui empêche le menu Démarrer de s'ouvrir : Windows ne voit
-        // jamais l'appui sur la touche Windows.
+        // This is what stops the Start menu from opening: Windows never sees
+        // the press of the Windows key.
         ChordDetector detector = CtrlWin();
         detector.OnKeyDown(Ctrl);
 
@@ -121,11 +121,11 @@ public class ChordDetectorTests
     }
 
     [Fact]
-    public void Une_touche_transmise_a_l_enfoncement_l_est_aussi_au_relachement()
+    public void A_key_passed_through_on_press_is_passed_through_on_release()
     {
-        // L'invariant central. Avaler le relâchement d'une touche dont
-        // l'enfoncement est passé laisserait Windows croire le modificateur
-        // toujours enfoncé : le clavier deviendrait inutilisable.
+        // The central invariant. Swallowing the release of a key whose press
+        // got through would leave Windows believing the modifier is still
+        // held: the keyboard would become unusable.
         ChordDetector detector = CtrlWin();
 
         Assert.False(detector.OnKeyDown(Ctrl).Swallow);
@@ -135,7 +135,7 @@ public class ChordDetectorTests
     }
 
     [Fact]
-    public void Une_touche_avalee_a_l_enfoncement_l_est_aussi_au_relachement()
+    public void A_key_swallowed_on_press_is_swallowed_on_release()
     {
         ChordDetector detector = CtrlWin();
         detector.OnKeyDown(Ctrl);
@@ -145,10 +145,11 @@ public class ChordDetectorTests
     }
 
     [Fact]
-    public void Rien_n_est_avale_tant_que_le_raccourci_est_incomplet()
+    public void Nothing_is_swallowed_while_the_shortcut_is_incomplete()
     {
-        // Point vital : avaler Ctrl dès son appui casserait Ctrl+C, Ctrl+V et
-        // tout le reste. On ne peut décider qu'une fois le raccourci complet.
+        // Vital point: swallowing Ctrl on its press would break Ctrl+C, Ctrl+V
+        // and everything else. The decision can only be taken once the
+        // shortcut is complete.
         ChordDetector detector = CtrlWin();
 
         Assert.False(detector.OnKeyDown(Ctrl).Swallow);
@@ -156,9 +157,9 @@ public class ChordDetectorTests
     }
 
     [Fact]
-    public void Une_combinaison_etrangere_traverse_sans_encombre()
+    public void A_foreign_combination_passes_through_untouched()
     {
-        // Ctrl+C doit continuer de fonctionner normalement.
+        // Ctrl+C has to keep working normally.
         ChordDetector detector = CtrlWin();
 
         Assert.False(detector.OnKeyDown(Ctrl).Swallow);
@@ -168,13 +169,13 @@ public class ChordDetectorTests
         Assert.False(detector.IsActive);
     }
 
-    // --- Menu Démarrer ----------------------------------------------------------
+    // --- Start menu -------------------------------------------------------------
 
     [Fact]
-    public void Presser_Ctrl_puis_Windows_n_exige_aucune_neutralisation()
+    public void Pressing_Ctrl_then_Windows_needs_no_neutralisation()
     {
-        // La touche Windows complète le raccourci : elle est avalée, Windows
-        // ne la voit jamais, rien à neutraliser.
+        // The Windows key completes the shortcut: it is swallowed, Windows
+        // never sees it, and there is nothing to neutralise.
         ChordDetector detector = CtrlWin();
         detector.OnKeyDown(Ctrl);
 
@@ -182,12 +183,12 @@ public class ChordDetectorTests
     }
 
     [Fact]
-    public void Presser_Windows_en_premier_exige_une_neutralisation()
+    public void Pressing_Windows_first_needs_a_neutralisation()
     {
-        // Ici l'appui sur Windows a déjà été transmis avant qu'on puisse
-        // savoir qu'il s'agissait de notre raccourci. Au relâchement, Windows
-        // ouvrirait le menu Démarrer : l'appelant doit injecter une touche
-        // sans effet pour rompre la séquence.
+        // Here the press on Windows was already delivered before there was any
+        // way to know it belonged to our shortcut. On release, Windows would
+        // open the Start menu: the caller has to inject a key with no effect
+        // to break the sequence.
         ChordDetector detector = CtrlWin();
         detector.OnKeyDown(Win);
 
@@ -195,7 +196,7 @@ public class ChordDetectorTests
     }
 
     [Fact]
-    public void Un_raccourci_sans_touche_Windows_n_exige_jamais_de_neutralisation()
+    public void A_shortcut_without_a_Windows_key_never_needs_neutralisation()
     {
         var detector = new ChordDetector(["Ctrl", "Alt"]);
         detector.OnKeyDown(Ctrl);
@@ -206,11 +207,11 @@ public class ChordDetectorTests
     // --- Interruption -----------------------------------------------------------
 
     [Fact]
-    public void Une_touche_etrangere_pendant_la_dictee_l_annule()
+    public void A_foreign_key_during_the_dictation_cancels_it()
     {
-        // Ctrl+Win+D crée un bureau virtuel. L'utilisateur ne demandait pas
-        // une transcription : mieux vaut abandonner que coller du texte dans
-        // un bureau qui vient de changer.
+        // Ctrl+Win+D creates a virtual desktop. The user was not asking for a
+        // transcription: better to give up than to paste text into a desktop
+        // that has just changed.
         ChordDetector detector = CtrlWin();
         detector.OnKeyDown(Ctrl);
         detector.OnKeyDown(Win);
@@ -222,9 +223,9 @@ public class ChordDetectorTests
     }
 
     [Fact]
-    public void La_touche_qui_annule_est_transmise_normalement()
+    public void The_key_that_cancels_is_passed_through_normally()
     {
-        // L'utilisateur voulait bien créer son bureau virtuel.
+        // The user did mean to create their virtual desktop.
         ChordDetector detector = CtrlWin();
         detector.OnKeyDown(Ctrl);
         detector.OnKeyDown(Win);
@@ -233,7 +234,7 @@ public class ChordDetectorTests
     }
 
     [Fact]
-    public void Apres_annulation_le_relachement_ne_declenche_pas_de_transcription()
+    public void After_a_cancellation_releasing_triggers_no_transcription()
     {
         ChordDetector detector = CtrlWin();
         detector.OnKeyDown(Ctrl);
@@ -245,10 +246,10 @@ public class ChordDetectorTests
     }
 
     [Fact]
-    public void Apres_annulation_l_equilibre_de_l_avalage_est_preserve()
+    public void After_a_cancellation_the_swallowing_balance_is_preserved()
     {
-        // Même annulée, la touche avalée à l'enfoncement doit voir son
-        // relâchement avalé, sinon le modificateur reste fantôme.
+        // Cancelled or not, a key swallowed on press must have its release
+        // swallowed too, otherwise the modifier stays a phantom.
         ChordDetector detector = CtrlWin();
         detector.OnKeyDown(Ctrl);
         detector.OnKeyDown(Win);
@@ -258,13 +259,13 @@ public class ChordDetectorTests
         Assert.False(detector.OnKeyUp(Ctrl).Swallow);
     }
 
-    // --- Remise à zéro ----------------------------------------------------------
+    // --- Reset ------------------------------------------------------------------
 
     [Fact]
-    public void La_remise_a_zero_annule_une_dictee_en_cours()
+    public void A_reset_cancels_a_dictation_in_progress()
     {
-        // Cas réel : session verrouillée pendant la dictée. Windows cesse de
-        // livrer les relâchements, la touche resterait « enfoncée » à jamais.
+        // A real case: the session locks during the dictation. Windows stops
+        // delivering releases, and the key would stay "held" forever.
         ChordDetector detector = CtrlWin();
         detector.OnKeyDown(Ctrl);
         detector.OnKeyDown(Win);
@@ -274,16 +275,16 @@ public class ChordDetectorTests
     }
 
     [Fact]
-    public void La_remise_a_zero_au_repos_ne_fait_rien()
+    public void A_reset_while_idle_does_nothing()
     {
         Assert.Equal(ChordAction.None, CtrlWin().Reset().Action);
     }
 
     [Fact]
-    public void Le_raccourci_refonctionne_apres_une_remise_a_zero()
+    public void The_shortcut_works_again_after_a_reset()
     {
-        // Sans cette garantie, un verrouillage de session désarmerait la
-        // dictée jusqu'au redémarrage de l'application.
+        // Without that guarantee, a locked session would disarm dictation
+        // until the application restarts.
         ChordDetector detector = CtrlWin();
         detector.OnKeyDown(Ctrl);
         detector.OnKeyDown(Win);
@@ -296,7 +297,7 @@ public class ChordDetectorTests
     // --- Construction -----------------------------------------------------------
 
     [Fact]
-    public void Un_raccourci_a_une_seule_touche_est_accepte()
+    public void A_single_key_shortcut_is_accepted()
     {
         var detector = new ChordDetector(["CapsLock"]);
 
@@ -305,7 +306,7 @@ public class ChordDetectorTests
     }
 
     [Fact]
-    public void Un_raccourci_a_trois_touches_exige_les_trois()
+    public void A_three_key_shortcut_requires_all_three()
     {
         var detector = new ChordDetector(["Ctrl", "Shift", "Space"]);
 
@@ -315,13 +316,13 @@ public class ChordDetectorTests
     }
 
     [Fact]
-    public void Un_raccourci_vide_est_refuse()
+    public void An_empty_shortcut_is_refused()
     {
         Assert.Throws<ArgumentException>(() => new ChordDetector([]));
     }
 
     [Fact]
-    public void Une_touche_inconnue_est_refusee()
+    public void An_unknown_key_is_refused()
     {
         Assert.Throws<ArgumentException>(() => new ChordDetector(["Fn"]));
     }

@@ -3,27 +3,28 @@ using System.Text.RegularExpressions;
 namespace HexWin.Transcription;
 
 /// <summary>
-/// Met au propre la sortie brute du moteur avant insertion dans le champ actif.
+/// Tidies up the raw engine output before it goes into the active field.
 ///
-/// Deux familles de corrections, d'origines différentes.
+/// Two families of correction, from different origins.
 ///
-/// Les filtres d'annotations et de génériques inventés viennent du temps de
-/// Whisper, qui émet des marqueurs de bruit ambiant entre crochets et recrache
-/// des formules de sous-titrage sur un enregistrement silencieux. Parakeet est
-/// bien plus sobre là-dessus, mais ces filtres sont conservés : ils ne coûtent
-/// rien et couvrent les cas où le moteur dérape sur du bruit.
+/// The filters for annotations and invented credits date from the Whisper era:
+/// Whisper emits ambient-noise markers in square brackets and spits out
+/// subtitling boilerplate on a silent recording. Parakeet is far more sober
+/// about that, but the filters are kept: they cost nothing and cover the cases
+/// where the engine slips on noise.
 ///
-/// L'espacement typographique, lui, concerne directement Parakeet, qui écrit
-/// « vendredi? » à l'anglaise là où l'usage français attend « vendredi ? ».
+/// The typographic spacing, by contrast, concerns Parakeet directly, which
+/// writes "vendredi?" the English way where French usage expects
+/// "vendredi ?".
 ///
-/// Classe volontairement pure : aucune dépendance, entièrement testable.
+/// A deliberately pure class: no dependency, entirely testable.
 /// </summary>
 public static partial class TranscriptCleaner
 {
     /// <summary>
-    /// Assemble et nettoie les segments rendus par Whisper. Rend une chaîne
-    /// vide s'il ne reste rien de significatif — l'appelant ne doit alors
-    /// rien insérer du tout.
+    /// Joins and cleans the segments the engine returned. Returns an empty
+    /// string if nothing meaningful is left — the caller must then insert
+    /// nothing at all.
     /// </summary>
     public static string Clean(IEnumerable<string?>? segments)
     {
@@ -49,23 +50,26 @@ public static partial class TranscriptCleaner
         cleaned = Whitespace().Replace(cleaned, " ").Trim();
         cleaned = FrenchPunctuationSpacing().Replace(cleaned, " $1");
 
-        // Après retrait des annotations, il peut ne rester que de la
-        // ponctuation orpheline. Insérer un « . » isolé serait pire que
-        // de ne rien insérer.
+        // Once the annotations are gone, nothing may remain but orphaned
+        // punctuation. Inserting a lone "." would be worse than inserting
+        // nothing.
         return ContainsMeaning().IsMatch(cleaned) ? cleaned : string.Empty;
     }
 
     /// <summary>
-    /// Annotations de bruit ambiant : [BLANK_AUDIO], [Musique], [Applause]...
-    /// Whisper les met systématiquement entre crochets, jamais la parole.
+    /// Ambient-noise annotations: [BLANK_AUDIO], [Musique], [Applause]...
+    /// Whisper always puts them in square brackets, and never speech.
     /// </summary>
     [GeneratedRegex(@"\[[^\]]*\]")]
     private static partial Regex BracketedAnnotation();
 
     /// <summary>
-    /// Mêmes annotations, mais entre parenthèses selon les modèles. Ici on ne
-    /// retire que les mentions connues de bruit : une parenthèse peut tout à
-    /// fait faire partie de la dictée, et la supprimer serait une perte.
+    /// The same annotations, but in parentheses depending on the model. Here
+    /// only known noise mentions are removed: a parenthesis can perfectly well
+    /// be part of the dictation, and deleting it would be a loss.
+    ///
+    /// The alternatives below are data, not prose: they match what the model
+    /// emits in French as well as in English, and must not be translated.
     /// </summary>
     [GeneratedRegex(
         @"\(\s*(?:musiques?|music|applaudissements?|applause|rires?|laughter|silence|"
@@ -77,20 +81,24 @@ public static partial class TranscriptCleaner
     private static partial Regex MusicalNotes();
 
     /// <summary>
-    /// Formules que Whisper invente sur un enregistrement quasi silencieux :
-    /// il a été entraîné sur des sous-titres de vidéos, dont les génériques
-    /// finissent par ressortir. Elles n'ont jamais été prononcées.
+    /// Boilerplate Whisper invents on a near-silent recording: it was trained
+    /// on video subtitles, whose closing credits end up resurfacing. None of
+    /// it was ever spoken.
     ///
-    /// Le mot « sous-titres » seul ne suffit pas à déclencher le retrait : il
-    /// faut qu'une marque d'attribution suive (« réalisés par », « Société »,
-    /// « ST' »...). Sans cette exigence, dicter « ajoute des sous-titres à la
-    /// vidéo » verrait sa phrase amputée.
+    /// The word "sous-titres" alone is not enough to trigger removal: an
+    /// attribution marker has to follow ("réalisés par", "Société", "ST'"...).
+    /// Without that requirement, dictating "ajoute des sous-titres à la vidéo"
+    /// would see the sentence cut short.
+    ///
+    /// Like the pattern above, these alternatives are data: they reproduce the
+    /// exact French wording the model produces, and translating them would
+    /// silently stop the cleaning from matching anything.
     /// </summary>
     /// <remarks>
-    /// Le motif de queue <c>(?:[^.!?\n]|\.(?=\p{Ll}))*</c> avance jusqu'à la
-    /// fin de la phrase, mais franchit un point suivi d'une minuscule : sans
-    /// quoi « Amara.org » couperait la correspondance en plein milieu et
-    /// laisserait un « org » orphelin dans le texte inséré.
+    /// The tail pattern <c>(?:[^.!?\n]|\.(?=\p{Ll}))*</c> runs to the end of
+    /// the sentence but steps over a full stop followed by a lowercase letter:
+    /// otherwise "Amara.org" would cut the match in half and leave an orphaned
+    /// "org" in the inserted text.
     /// </remarks>
     [GeneratedRegex(
         @"(?:Sous-titr(?:es|age)\s+(?:r[ée]alis[ée]s?\s+par|par|Soci[ée]t[ée]|ST['’]|MFP\b)"
@@ -108,18 +116,17 @@ public static partial class TranscriptCleaner
     private static partial Regex Whitespace();
 
     /// <summary>
-    /// Rétablit l'espace que la typographie française met avant les signes
-    /// doubles. Parakeet écrit « vendredi? », là où l'usage veut
-    /// « vendredi ? ».
+    /// Restores the space French typography puts before double punctuation
+    /// marks. Parakeet writes "vendredi?" where usage wants "vendredi ?".
     ///
-    /// Le signe doit suivre une lettre ou un chiffre et être suivi d'une
-    /// espace ou de la fin du texte. Sans cette seconde condition, « 14:30 »
-    /// et « https://exemple.fr » se retrouveraient coupés en deux.
+    /// The mark must follow a letter or a digit and be followed by a space or
+    /// the end of the text. Without that second condition, "14:30" and
+    /// "https://exemple.fr" would end up cut in two.
     /// </summary>
     [GeneratedRegex(@"(?<=[\p{L}\p{N}])([?!;:»])(?=\s|$)")]
     private static partial Regex FrenchPunctuationSpacing();
 
-    /// <summary>Au moins une lettre ou un chiffre : sinon il n'y a rien à insérer.</summary>
+    /// <summary>At least one letter or digit: otherwise there is nothing to insert.</summary>
     [GeneratedRegex(@"[\p{L}\p{N}]")]
     private static partial Regex ContainsMeaning();
 }

@@ -4,14 +4,13 @@ using Microsoft.Win32;
 namespace HexWin.Tray;
 
 /// <summary>
-/// Lancement automatique à l'ouverture de session, via la clé Run de
-/// l'utilisateur courant.
+/// Automatic launch at sign-in, through the Run key of the current user.
 ///
-/// Cette clé plutôt qu'un raccourci dans le dossier Démarrage, et surtout
-/// plutôt qu'une tâche planifiée : elle ne demande aucun droit
-/// administrateur, et se retire aussi facilement qu'elle se pose.
+/// That key rather than a shortcut in the Startup folder, and above all rather
+/// than a scheduled task: it needs no administrator rights, and comes out as
+/// easily as it goes in.
 /// </summary>
-[ExcludeFromCodeCoverage(Justification = "Coquille Win32 : écrit dans le registre de l'utilisateur courant.")]
+[ExcludeFromCodeCoverage(Justification = "Win32 shell: writes into the registry of the current user.")]
 internal static class AutoStart
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -46,9 +45,9 @@ internal static class AutoStart
 
             if (enabled)
             {
-                // Les guillemets sont indispensables : le chemin traverse
-                // « Documents » et d'autres dossiers pouvant contenir des
-                // espaces, que Windows découperait sinon en arguments.
+                // The quotes are indispensable: the path runs through
+                // "Documents" and other folders that may contain spaces, which
+                // Windows would otherwise split into arguments.
                 key.SetValue(ValueName, $"\"{Environment.ProcessPath}\"");
             }
             else
@@ -58,8 +57,8 @@ internal static class AutoStart
         }
         catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException)
         {
-            // Stratégie de groupe restrictive : on renonce sans bruit plutôt
-            // que de faire tomber l'application sur un réglage secondaire.
+            // Restrictive group policy: give up quietly rather than bring the
+            // application down over a secondary setting.
         }
     }
 }

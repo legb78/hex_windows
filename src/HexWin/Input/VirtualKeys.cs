@@ -1,19 +1,18 @@
 namespace HexWin.Input;
 
 /// <summary>
-/// Traduit les noms de touches de settings.json en codes virtuels Windows.
+/// Translates the key names from settings.json into Windows virtual codes.
 ///
-/// Les noms génériques — « Ctrl », « Win » — désignent chacun deux touches
-/// physiques. Le hook bas niveau, lui, ne voit jamais le code générique : il
-/// reçoit toujours la touche gauche ou droite. C'est cette classe qui fait le
-/// pont, en admettant les deux.
+/// Generic names — "Ctrl", "Win" — each stand for two physical keys. The
+/// low-level hook never sees the generic code: it always receives the left or
+/// the right key. This class bridges the two, by accepting either.
 /// </summary>
 public static class VirtualKeys
 {
     public const int LeftControl = 0xA2;
     public const int RightControl = 0xA3;
-    public const int LeftMenu = 0xA4;        // Alt gauche
-    public const int RightMenu = 0xA5;       // Alt droit
+    public const int LeftMenu = 0xA4;        // left Alt
+    public const int RightMenu = 0xA5;       // right Alt
     public const int LeftShift = 0xA0;
     public const int RightShift = 0xA1;
     public const int LeftWindows = 0x5B;
@@ -21,7 +20,7 @@ public static class VirtualKeys
     public const int CapsLock = 0x14;
     public const int Space = 0x20;
 
-    /// <summary>Première touche de fonction inexistante sur un clavier physique.</summary>
+    /// <summary>First function key that no physical keyboard carries.</summary>
     public const int F13 = 0x7C;
 
     private static readonly Dictionary<string, int[]> ByName = new(StringComparer.OrdinalIgnoreCase)
@@ -47,8 +46,8 @@ public static class VirtualKeys
     };
 
     /// <summary>
-    /// Codes acceptés pour un nom de touche. Un nom générique en rend deux :
-    /// « Ctrl » est satisfait par la touche gauche comme par la droite.
+    /// Codes accepted for a key name. A generic name yields two: "Ctrl" is
+    /// satisfied by the left key as much as by the right one.
     /// </summary>
     public static int[] Resolve(string name)
     {
@@ -57,7 +56,7 @@ public static class VirtualKeys
             return codes;
         }
 
-        // F13 à F24 se suivent dans la table des codes virtuels.
+        // F13 through F24 are consecutive in the virtual-code table.
         if (name.Length >= 3
             && (name[0] is 'F' or 'f')
             && int.TryParse(name.AsSpan(1), out int number)
@@ -66,10 +65,10 @@ public static class VirtualKeys
             return [F13 + (number - 13)];
         }
 
-        throw new ArgumentException($"Touche inconnue : {name}", nameof(name));
+        throw new ArgumentException($"Unknown key: {name}", nameof(name));
     }
 
-    /// <summary>Vrai si le code désigne l'une des deux touches Windows.</summary>
+    /// <summary>True when the code is one of the two Windows keys.</summary>
     public static bool IsWindowsKey(int virtualKey) =>
         virtualKey is LeftWindows or RightWindows;
 }

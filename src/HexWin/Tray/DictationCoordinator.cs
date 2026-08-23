@@ -1,52 +1,52 @@
 namespace HexWin.Tray;
 
-/// <summary>Ce que fait l'application à un instant donné.</summary>
+/// <summary>What the application is doing at a given moment.</summary>
 public enum DictationState
 {
-    /// <summary>Le modèle se charge. Le raccourci ne répond pas encore.</summary>
+    /// <summary>The model is loading. The shortcut does not respond yet.</summary>
     Loading,
 
-    /// <summary>Prêt, en attente du raccourci.</summary>
+    /// <summary>Ready, waiting for the shortcut.</summary>
     Idle,
 
-    /// <summary>Le micro tourne.</summary>
+    /// <summary>The microphone is running.</summary>
     Recording,
 
-    /// <summary>Le moteur travaille sur l'enregistrement.</summary>
+    /// <summary>The engine is working on the recording.</summary>
     Transcribing,
 
-    /// <summary>Le modèle n'a pas pu être chargé : l'application est inutilisable.</summary>
+    /// <summary>The model could not be loaded: the application is unusable.</summary>
     Failed,
 }
 
 /// <summary>
-/// Décide ce qui est permis selon l'état courant.
+/// Decides what is allowed given the current state.
 ///
-/// Logique pure, extraite du reste pour la même raison que
-/// <see cref="Input.ChordDetector"/> : les situations à couvrir sont des
-/// courses entre l'utilisateur et la machine, pénibles à provoquer à la main
-/// mais triviales à décrire en test.
+/// Pure logic, pulled out from the rest for the same reason as
+/// <see cref="Input.ChordDetector"/>: the situations to cover are races
+/// between the user and the machine, awkward to provoke by hand but trivial to
+/// describe in a test.
 ///
-/// Le cas qui compte : appuyer de nouveau sur le raccourci pendant qu'une
-/// transcription est en cours. Sans garde, deux dictées se marcheraient
-/// dessus et le texte arriverait dans le désordre.
+/// The case that matters: pressing the shortcut again while a transcription is
+/// running. With no guard, two dictations would tread on each other and the
+/// text would arrive out of order.
 /// </summary>
 public sealed class DictationCoordinator
 {
     public DictationState State { get; private set; } = DictationState.Loading;
 
-    /// <summary>Levé à chaque changement, pour que l'icône suive.</summary>
+    /// <summary>Raised on every change, so the icon can follow.</summary>
     public event EventHandler<DictationState>? StateChanged;
 
-    /// <summary>Le modèle est chargé : le raccourci devient opérant.</summary>
+    /// <summary>The model is loaded: the shortcut becomes live.</summary>
     public void MarkReady() => MoveTo(DictationState.Idle);
 
-    /// <summary>Le modèle n'a pas pu être chargé.</summary>
+    /// <summary>The model could not be loaded.</summary>
     public void MarkFailed() => MoveTo(DictationState.Failed);
 
     /// <summary>
-    /// Tente de démarrer un enregistrement. Rend faux si l'état ne le permet
-    /// pas — modèle non chargé, ou transcription encore en cours.
+    /// Tries to start a recording. Returns false if the state does not allow
+    /// it — model not loaded, or a transcription still running.
     /// </summary>
     public bool TryStartRecording()
     {
@@ -60,9 +60,9 @@ public sealed class DictationCoordinator
     }
 
     /// <summary>
-    /// Tente de passer à la transcription. Rend faux si aucun enregistrement
-    /// n'était en cours : un relâchement peut arriver sans début associé,
-    /// après une remise à zéro du raccourci par exemple.
+    /// Tries to move on to transcription. Returns false if no recording was
+    /// running: a release can arrive with no matching start, after a reset of
+    /// the shortcut for instance.
     /// </summary>
     public bool TryStartTranscribing()
     {
@@ -75,7 +75,7 @@ public sealed class DictationCoordinator
         return true;
     }
 
-    /// <summary>La dictée est terminée, réussie ou non : retour à l'attente.</summary>
+    /// <summary>The dictation is over, successful or not: back to waiting.</summary>
     public void Complete()
     {
         if (State is DictationState.Recording or DictationState.Transcribing)
@@ -85,9 +85,9 @@ public sealed class DictationCoordinator
     }
 
     /// <summary>
-    /// Abandon : touche étrangère, session verrouillée, enregistrement trop
-    /// court. Rend vrai si un enregistrement était réellement en cours et
-    /// doit donc être interrompu.
+    /// Abandon: a foreign key, a locked session, a recording too short.
+    /// Returns true if a recording really was running and so must be
+    /// interrupted.
     /// </summary>
     public bool Cancel()
     {

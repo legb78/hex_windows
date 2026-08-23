@@ -4,19 +4,19 @@ using HexWin.Diagnostics;
 namespace HexWin.Transcription;
 
 /// <summary>
-/// Détient le moteur, le charge à la demande et le libère après inactivité.
+/// Holds the engine, loads it on demand and releases it after a period of
+/// inactivity.
 ///
-/// <para><b>Le rechargement est déclenché à l'enfoncement de la touche</b>, pas
-/// au relâchement : il se déroule donc pendant que l'utilisateur parle. Sur une
-/// phrase de deux secondes, les trois secondes de chargement sont presque
-/// entièrement masquées, et il ne reste qu'un court reliquat au lieu d'une
-/// attente complète.</para>
+/// <para><b>The reload is triggered on the key press</b>, not on the release:
+/// it therefore runs while the user is still speaking. On a two-second
+/// sentence, the three seconds of loading are almost entirely hidden, leaving
+/// a short remainder instead of a full wait.</para>
 ///
-/// <para>Un verrou sérialise chargements et libérations : sans lui, une
-/// libération déclenchée par le minuteur pourrait survenir entre le moment où
-/// un appelant récupère le moteur et celui où il l'utilise.</para>
+/// <para>A lock serialises loads and releases: without it, a release triggered
+/// by the timer could land between the moment a caller obtains the engine and
+/// the moment it uses it.</para>
 /// </summary>
-[ExcludeFromCodeCoverage(Justification = "Coquille : charge une bibliothèque native et pilote un minuteur. La décision de libérer est dans IdlePolicy, qui est testée.")]
+[ExcludeFromCodeCoverage(Justification = "Shell: loads a native library and drives a timer. The decision to release lives in IdlePolicy, which is tested.")]
 internal sealed class EngineHost : IDisposable
 {
     private readonly string _modelPath;
@@ -43,8 +43,8 @@ internal sealed class EngineHost : IDisposable
 
         if (_policy.IsEnabled)
         {
-            // Vérifié quatre fois par délai : assez fin pour libérer sans
-            // traîner, assez rare pour ne rien coûter.
+            // Checked four times per deadline: fine enough to release without
+            // dragging, rare enough to cost nothing.
             TimeSpan tick = TimeSpan.FromMilliseconds(Math.Max(_policy.Timeout.TotalMilliseconds / 4, 5_000));
             _idleCheck = new System.Threading.Timer(_ => ReleaseIfIdle(), null, tick, tick);
         }
@@ -53,8 +53,8 @@ internal sealed class EngineHost : IDisposable
     public bool IsLoaded => _engine is not null;
 
     /// <summary>
-    /// Lance le chargement sans attendre. Appelé dès l'enfoncement de la
-    /// touche pour que le travail se fasse pendant que l'utilisateur parle.
+    /// Starts loading without waiting. Called on the key press so the work
+    /// happens while the user is speaking.
     /// </summary>
     public void BeginLoad()
     {
@@ -71,15 +71,16 @@ internal sealed class EngineHost : IDisposable
             }
             catch (Exception ex) when (ex is FileNotFoundException or InvalidOperationException or DllNotFoundException)
             {
-                // L'échec sera signalé à la transcription, qui l'attend.
+                // The failure will be reported by the transcription, which is
+                // waiting for it.
                 _log.Write($"préchargement impossible : {ex.Message}");
             }
         });
     }
 
     /// <summary>
-    /// Rend le moteur, le chargeant si nécessaire. Plusieurs appels
-    /// simultanés ne provoquent qu'un seul chargement.
+    /// Returns the engine, loading it if needed. Several simultaneous calls
+    /// cause only one load.
     /// </summary>
     public async Task<ParakeetEngine> GetAsync(CancellationToken cancellationToken = default)
     {
@@ -113,8 +114,8 @@ internal sealed class EngineHost : IDisposable
     }
 
     /// <summary>
-    /// Signale qu'une dictée commence ou s'achève. Tant qu'elle dure, le
-    /// modèle ne peut pas être libéré, même si le délai d'inactivité tombe.
+    /// Signals that a dictation is starting or finishing. While one is running
+    /// the model cannot be released, even if the idle deadline falls due.
     /// </summary>
     public void SetBusy(bool busy)
     {
@@ -135,15 +136,15 @@ internal sealed class EngineHost : IDisposable
 
         if (!_gate.Wait(TimeSpan.Zero))
         {
-            // Un chargement ou une transcription est en cours : on réessaiera
-            // au prochain passage plutôt que d'attendre en bloquant.
+            // A load or a transcription is under way: we will try again on the
+            // next pass rather than wait and block.
             return;
         }
 
         try
         {
-            // Le contrôle est refait sous verrou : l'état a pu changer entre
-            // la première vérification et l'obtention du verrou.
+            // The check is redone under the lock: the state may have changed
+            // between the first check and taking the lock.
             if (_engine is not null && _policy.ShouldUnload(DateTime.UtcNow - _lastUse, _busy))
             {
                 _engine.Dispose();

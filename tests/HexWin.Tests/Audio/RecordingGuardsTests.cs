@@ -14,10 +14,11 @@ public class RecordingGuardsTests
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(249)]
-    public void Un_appui_accidentel_est_ecarte(int milliseconds)
+    public void An_accidental_tap_is_discarded(int milliseconds)
     {
-        // Sans ce garde-fou, un effleurement ferait tourner le moteur pour
-        // rien — et le modèle inventerait volontiers une phrase sur du vide.
+        // Without this guard, a brush of the key would run the engine for
+        // nothing — and the model would happily invent a sentence out of thin
+        // air.
         Assert.True(Guards.IsTooShort(TimeSpan.FromMilliseconds(milliseconds)));
     }
 
@@ -25,22 +26,22 @@ public class RecordingGuardsTests
     [InlineData(250)]
     [InlineData(251)]
     [InlineData(5_000)]
-    public void Un_appui_assez_long_est_retenu(int milliseconds)
+    public void A_long_enough_press_is_kept(int milliseconds)
     {
         Assert.False(Guards.IsTooShort(TimeSpan.FromMilliseconds(milliseconds)));
     }
 
     [Fact]
-    public void La_borne_minimale_est_inclusive()
+    public void The_minimum_bound_is_inclusive()
     {
-        // Exactement à la limite, on garde : refuser serait plus surprenant.
+        // Exactly on the limit, we keep it: refusing would be more surprising.
         Assert.False(Guards.IsTooShort(TimeSpan.FromMilliseconds(250)));
     }
 
     [Theory]
     [InlineData(119)]
     [InlineData(0)]
-    public void En_deca_du_plafond_la_capture_continue(int seconds)
+    public void Below_the_ceiling_capture_carries_on(int seconds)
     {
         Assert.False(Guards.HasReachedMaximum(TimeSpan.FromSeconds(seconds)));
     }
@@ -49,21 +50,21 @@ public class RecordingGuardsTests
     [InlineData(120)]
     [InlineData(121)]
     [InlineData(3_600)]
-    public void Au_plafond_la_capture_doit_s_arreter(int seconds)
+    public void At_the_ceiling_capture_must_stop(int seconds)
     {
-        // Touche restée enfoncée dans une poche : sans plafond, la mémoire
-        // grossirait sans fin.
+        // Key held down in a pocket: with no ceiling, memory would grow
+        // without end.
         Assert.True(Guards.HasReachedMaximum(TimeSpan.FromSeconds(seconds)));
     }
 
     [Fact]
-    public void Le_plafond_se_traduit_en_taille_exploitable()
+    public void The_ceiling_converts_to_a_usable_size()
     {
         Assert.Equal(120L * RecordingFormat.BytesPerSecond, Guards.MaximumBytes);
     }
 
     [Fact]
-    public void Les_bornes_proviennent_de_la_configuration()
+    public void The_bounds_come_from_the_configuration()
     {
         AppSettings settings = AppSettings.Parse(
             """{"minRecordingMilliseconds": 400, "maxRecordingSeconds": 30}""");
@@ -75,10 +76,10 @@ public class RecordingGuardsTests
     }
 
     [Fact]
-    public void Une_duree_minimale_nulle_accepte_tout()
+    public void A_zero_minimum_duration_accepts_everything()
     {
-        // Configuration limite, mais légitime : certains veulent dicter des
-        // mots isolés très courts.
+        // An edge configuration, but a legitimate one: some people want to
+        // dictate very short isolated words.
         var permissive = new RecordingGuards(TimeSpan.Zero, TimeSpan.FromSeconds(10));
 
         Assert.False(permissive.IsTooShort(TimeSpan.Zero));

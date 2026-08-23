@@ -5,22 +5,22 @@ using Microsoft.Win32;
 namespace HexWin.Input;
 
 /// <summary>
-/// Hook clavier bas niveau : voit toutes les frappes du système, quelle que
-/// soit la fenêtre active.
+/// Low-level keyboard hook: sees every keystroke on the system, whatever the
+/// active window.
 ///
-/// Coquille volontairement mince. Toute la décision appartient à
-/// <see cref="ChordDetector"/>, qui se teste ; ici on ne fait que brancher
-/// Win32 et relayer.
+/// A deliberately thin shell. All the deciding belongs to
+/// <see cref="ChordDetector"/>, which is testable; here we only wire up Win32
+/// and relay.
 ///
-/// <para><b>Contrainte impérative : ne jamais bloquer dans le rappel.</b>
-/// Windows accorde au rappel un délai — <c>LowLevelHooksTimeout</c>, 5 s par
-/// défaut mais souvent bien moins. Passé ce délai, le système désinstalle le
-/// hook <i>silencieusement</i> : le raccourci cesse de répondre sans le
-/// moindre message, et seul un redémarrage de l'application le rétablit.
-/// Les abonnés doivent donc rendre la main immédiatement et confier le
-/// travail à un fil de fond.</para>
+/// <para><b>Hard constraint: never block inside the callback.</b> Windows
+/// grants the callback a deadline — <c>LowLevelHooksTimeout</c>, 5 s by
+/// default but often far less. Past that deadline the system uninstalls the
+/// hook <i>silently</i>: the shortcut stops responding without a single
+/// message, and only restarting the application brings it back. Subscribers
+/// must therefore return immediately and hand the work to a background
+/// thread.</para>
 /// </summary>
-[ExcludeFromCodeCoverage(Justification = "Coquille Win32 : un hook clavier global ne peut pas être déclenché par un test : Windows marque comme injectées les frappes produites par un programme.")]
+[ExcludeFromCodeCoverage(Justification = "Win32 shell: a global keyboard hook cannot be triggered by a test, because Windows marks keystrokes produced by a program as injected.")]
 internal sealed partial class KeyboardHook : IDisposable
 {
     private const int WhKeyboardLowLevel = 13;
@@ -31,7 +31,7 @@ internal sealed partial class KeyboardHook : IDisposable
     private const nint WmSysKeyDown = 0x0104;
     private const nint WmSysKeyUp = 0x0105;
 
-    /// <summary>Marque les événements que nous avons nous-mêmes injectés.</summary>
+    /// <summary>Marks the events we injected ourselves.</summary>
     private const uint LlkhfInjected = 0x10;
 
     private const uint InputKeyboard = 1;
@@ -40,9 +40,9 @@ internal sealed partial class KeyboardHook : IDisposable
     private readonly ChordDetector _detector;
 
     /// <summary>
-    /// Le délégué doit être conservé dans un champ. Sans cela, le ramasse-
-    /// miettes le collecte alors que Windows en détient encore l'adresse, et
-    /// le processus s'effondre au premier appui de touche.
+    /// The delegate must be held in a field. Without that, the garbage
+    /// collector reclaims it while Windows still holds its address, and the
+    /// process collapses on the first keystroke.
     /// </summary>
     private readonly HookProc _callback;
 
@@ -50,8 +50,8 @@ internal sealed partial class KeyboardHook : IDisposable
     private bool _disposed;
 
     /// <summary>
-    /// Date du dernier événement clavier observé. Sert au chien de garde à
-    /// distinguer « personne ne tape » de « le hook est mort ».
+    /// Time of the last keyboard event we saw. Lets the watchdog tell a
+    /// keyboard nobody is typing on apart from a hook that has died.
     /// </summary>
     private long _lastEventTicks = DateTime.UtcNow.Ticks;
 
@@ -61,13 +61,13 @@ internal sealed partial class KeyboardHook : IDisposable
         _callback = OnKeyboardEvent;
     }
 
-    /// <summary>Le raccourci vient d'être complété : démarrer l'enregistrement.</summary>
+    /// <summary>The shortcut has just completed: start recording.</summary>
     public event EventHandler? Started;
 
-    /// <summary>Le raccourci vient d'être relâché : transcrire.</summary>
+    /// <summary>The shortcut has just been released: transcribe.</summary>
     public event EventHandler? Stopped;
 
-    /// <summary>La dictée est abandonnée sans transcrire.</summary>
+    /// <summary>The dictation is abandoned without transcribing.</summary>
     public event EventHandler? Cancelled;
 
     public void Install()
@@ -82,12 +82,11 @@ internal sealed partial class KeyboardHook : IDisposable
         if (_hook == 0)
         {
             throw new InvalidOperationException(
-                $"Installation du hook clavier impossible (erreur {Marshal.GetLastWin32Error()}).");
+                $"Cannot install the keyboard hook (error {Marshal.GetLastWin32Error()}).");
         }
 
-        // Le verrouillage de session interrompt la livraison des
-        // relâchements : sans remise à zéro, une touche resterait
-        // éternellement considérée comme enfoncée.
+        // Locking the session interrupts the delivery of key-ups: without a
+        // reset, a key would be considered held down forever.
         SystemEvents.SessionSwitch += OnSessionSwitch;
     }
 
@@ -100,26 +99,25 @@ internal sealed partial class KeyboardHook : IDisposable
     }
 
     /// <summary>
-    /// Réinstalle le hook s'il n'a rien vu passer depuis <paramref name="silence"/>.
+    /// Reinstalls the hook if it has seen nothing for <paramref name="silence"/>.
     ///
-    /// <para>Windows désinstalle un hook bas niveau <b>sans le dire</b> quand
-    /// son rappel dépasse le délai imparti. L'application reste alors
-    /// parfaitement saine en apparence — icône bleue, aucune erreur — mais le
-    /// raccourci ne répond plus, et seul un redémarrage le rétablit.</para>
+    /// <para>Windows uninstalls a low-level hook <b>without saying so</b> when
+    /// its callback overruns the allotted deadline. The application then looks
+    /// perfectly healthy — blue icon, no error — but the shortcut no longer
+    /// responds, and only a restart brings it back.</para>
     ///
-    /// <para>Aucune API ne permet d'interroger l'état d'un hook. On compare
-    /// donc ce que <i>nous</i> avons vu à ce que <i>Windows</i> a vu :
-    /// <c>GetLastInputInfo</c> rend la date de la dernière saisie du système,
-    /// indépendamment de notre hook. Si Windows a reçu des frappes que nous
-    /// n'avons pas vues, notre hook est mort. Si personne n'a rien tapé, il
-    /// n'y a rien à réparer.</para>
+    /// <para>No API lets you query the state of a hook. So we compare what
+    /// <i>we</i> saw against what <i>Windows</i> saw: <c>GetLastInputInfo</c>
+    /// returns the time of the last input on the system, independently of our
+    /// hook. If Windows received keystrokes we did not see, our hook is dead.
+    /// If nobody typed anything, there is nothing to repair.</para>
     ///
-    /// <para>Une première version se contentait du silence de notre côté, ce
-    /// qui réinstallait le hook toutes les deux minutes pendant une nuit
-    /// entière : inutile, et le journal en devenait illisible — au point qu'un
-    /// vrai incident s'y serait noyé.</para>
+    /// <para>An early version looked only at the silence on our side, which
+    /// reinstalled the hook every two minutes for a whole night: pointless, and
+    /// it made the log unreadable — to the point where a real incident would
+    /// have drowned in it.</para>
     /// </summary>
-    /// <returns>Vrai si une réinstallation a eu lieu.</returns>
+    /// <returns>True if a reinstall took place.</returns>
     public bool RefreshIfSilent(TimeSpan silence)
     {
         if (_hook == 0 || _disposed)
@@ -135,14 +133,14 @@ internal sealed partial class KeyboardHook : IDisposable
             return false;
         }
 
-        // Le système a-t-il vu des frappes que nous avons manquées ?
+        // Did the system see keystrokes we missed?
         if (!SystemSawInputAfter(ourLastEvent))
         {
             return false;
         }
 
-        // Le nouveau hook est posé AVANT de retirer l'ancien : dans l'autre
-        // ordre, une frappe survenant entre les deux appels serait perdue.
+        // The new hook goes in BEFORE the old one comes out: the other way
+        // round, a keystroke landing between the two calls would be lost.
         nint renewed = SetWindowsHookExW(WhKeyboardLowLevel, _callback, 0, 0);
 
         if (renewed == 0)
@@ -168,7 +166,7 @@ internal sealed partial class KeyboardHook : IDisposable
 
         KeyboardInput input = Marshal.PtrToStructure<KeyboardInput>(data);
 
-        // Ne pas réagir à ce que l'on injecte soi-même, sous peine de boucle.
+        // Do not react to what we inject ourselves, on pain of a loop.
         if ((input.Flags & LlkhfInjected) != 0)
         {
             return CallNextHookEx(0, code, message, data);
@@ -202,31 +200,29 @@ internal sealed partial class KeyboardHook : IDisposable
                 break;
         }
 
-        // Retourner 1 consomme l'événement : Windows ne le verra jamais.
+        // Returning 1 consumes the event: Windows will never see it.
         return decision.Swallow ? 1 : CallNextHookEx(0, code, message, data);
     }
 
     /// <summary>
-    /// Neutralise une touche Windows que le système a déjà reçue.
+    /// Neutralises a Windows key the system has already received.
     ///
-    /// <para>Deux problèmes distincts, réglés par la même séquence.</para>
+    /// <para>Two distinct problems, settled by the same sequence.</para>
     ///
-    /// <para><b>Le menu Démarrer.</b> Windows l'ouvre sur une touche Windows
-    /// pressée puis relâchée sans autre touche entre les deux. F13 rompt cette
-    /// séquence : elle n'existe sur aucun clavier vendu aujourd'hui, rien ne
-    /// lui est associé.</para>
+    /// <para><b>The Start menu.</b> Windows opens it on a Windows key pressed
+    /// and released with no other key in between. F13 breaks that sequence: it
+    /// exists on no keyboard sold today, and nothing is bound to it.</para>
     ///
-    /// <para><b>Le modificateur resté enfoncé.</b> Celui-là a coûté cher à
-    /// diagnostiquer. Quand l'utilisateur presse Windows <i>avant</i> l'autre
-    /// touche, l'appui a déjà été transmis au système, qui considère le
-    /// modificateur actif pour toute la durée de la dictée. L'insertion
-    /// injecte alors Ctrl+V — et Windows lit <b>Win+Ctrl+V</b>, son raccourci
-    /// d'ouverture du panneau de sortie audio. Le panneau apparaît, vole le
-    /// focus, et le texte transcrit se perd. On relâche donc explicitement les
-    /// touches Windows après F13.</para>
+    /// <para><b>The stuck modifier.</b> This one was expensive to diagnose.
+    /// When the user presses Windows <i>before</i> the other key, the press has
+    /// already gone to the system, which considers the modifier active for the
+    /// whole dictation. Insertion then injects Ctrl+V — and Windows reads
+    /// <b>Win+Ctrl+V</b>, its shortcut for opening the audio output panel. The
+    /// panel appears, steals the focus, and the transcribed text is lost. So we
+    /// explicitly release the Windows keys after F13.</para>
     ///
-    /// <para>L'ordre importe : F13 d'abord, sinon le relâchement injecté
-    /// ouvrirait précisément le menu Démarrer qu'on cherche à éviter.</para>
+    /// <para>Order matters: F13 first, otherwise the injected release would open
+    /// the very Start menu we are trying to avoid.</para>
     /// </summary>
     private static void SendNeutralKey()
     {
@@ -272,9 +268,8 @@ internal sealed partial class KeyboardHook : IDisposable
     }
 
     /// <summary>
-    /// Vrai si Windows a enregistré une saisie utilisateur postérieure à la
-    /// date fournie. Le système compte en millisecondes depuis son démarrage,
-    /// d'où la conversion.
+    /// True if Windows recorded user input later than the given time. The
+    /// system counts in milliseconds since it started, hence the conversion.
     /// </summary>
     private static bool SystemSawInputAfter(long ticks)
     {
@@ -282,8 +277,8 @@ internal sealed partial class KeyboardHook : IDisposable
 
         if (!GetLastInputInfo(ref info))
         {
-            // Sans information, on préfère réinstaller : un hook mort coûte
-            // plus cher qu'une réinstallation inutile.
+            // With no information, we would rather reinstall: a dead hook costs
+            // more than a pointless reinstall.
             return true;
         }
 
@@ -330,8 +325,8 @@ internal sealed partial class KeyboardHook : IDisposable
         public KeyboardInputData Keyboard;
 
         /// <summary>
-        /// Réserve la place de la plus grande variante de l'union (la souris),
-        /// pour que la taille de la structure soit celle qu'attend Win32.
+        /// Reserves room for the largest variant of the union (the mouse), so
+        /// that the structure is the size Win32 expects.
         /// </summary>
         [FieldOffset(0)]
         private MouseInputData _mouse;

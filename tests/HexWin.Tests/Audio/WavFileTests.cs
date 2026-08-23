@@ -5,9 +5,9 @@ using Xunit;
 namespace HexWin.Tests.Audio;
 
 /// <summary>
-/// L'en-tête est vérifiée octet par octet, parce qu'une erreur ici ne provoque
-/// aucune exception : le moteur charge le fichier et transcrit du bruit.
-/// Le symptôme serait « la dictée rend n'importe quoi », très loin de la cause.
+/// The header is checked byte by byte, because a mistake here raises no
+/// exception: the engine loads the file and transcribes noise. The symptom
+/// would be "dictation returns nonsense", a long way from the cause.
 /// </summary>
 public class WavFileTests
 {
@@ -21,7 +21,7 @@ public class WavFileTests
     private static short Int16At(byte[] file, int offset) => BitConverter.ToInt16(file, offset);
 
     [Fact]
-    public void Le_fichier_commence_par_la_signature_RIFF_WAVE()
+    public void The_file_starts_with_the_RIFF_WAVE_signature()
     {
         byte[] file = WavFile.Create(Pcm);
 
@@ -32,7 +32,7 @@ public class WavFileTests
     }
 
     [Fact]
-    public void La_taille_RIFF_vaut_la_taille_totale_moins_huit()
+    public void The_RIFF_size_is_the_total_size_minus_eight()
     {
         byte[] file = WavFile.Create(Pcm);
 
@@ -40,7 +40,7 @@ public class WavFileTests
     }
 
     [Fact]
-    public void Le_bloc_data_annonce_la_taille_reelle_des_echantillons()
+    public void The_data_chunk_announces_the_real_sample_size()
     {
         byte[] file = WavFile.Create(Pcm);
 
@@ -48,22 +48,23 @@ public class WavFileTests
     }
 
     [Fact]
-    public void Le_format_annonce_est_celui_qu_attend_le_moteur()
+    public void The_announced_format_is_the_one_the_engine_expects()
     {
         byte[] file = WavFile.Create(Pcm);
 
-        Assert.Equal(16, Int32At(file, 16));                          // taille du bloc fmt
-        Assert.Equal(1, Int16At(file, 20));                           // PCM non compressé
+        Assert.Equal(16, Int32At(file, 16));                          // fmt chunk size
+        Assert.Equal(1, Int16At(file, 20));                           // uncompressed PCM
         Assert.Equal(RecordingFormat.Channels, Int16At(file, 22));    // mono
         Assert.Equal(RecordingFormat.SampleRate, Int32At(file, 24));  // 16 kHz
         Assert.Equal(RecordingFormat.BitsPerSample, Int16At(file, 34));
     }
 
     [Fact]
-    public void Le_debit_et_l_alignement_sont_coherents_avec_le_format()
+    public void The_bitrate_and_alignment_agree_with_the_format()
     {
-        // Ces deux champs sont redondants avec les précédents. Un lecteur qui
-        // s'y fie lirait le flux à la mauvaise vitesse s'ils étaient faux.
+        // These two fields are redundant with the ones above. A reader that
+        // trusts them would play the stream at the wrong speed if they were
+        // wrong.
         byte[] file = WavFile.Create(Pcm);
 
         Assert.Equal(RecordingFormat.BytesPerSecond, Int32At(file, 28));
@@ -71,7 +72,7 @@ public class WavFileTests
     }
 
     [Fact]
-    public void Les_echantillons_suivent_l_en_tete_sans_alteration()
+    public void The_samples_follow_the_header_unaltered()
     {
         byte[] file = WavFile.Create(Pcm);
 
@@ -80,7 +81,7 @@ public class WavFileTests
     }
 
     [Fact]
-    public void Un_enregistrement_vide_produit_une_en_tete_seule_et_valide()
+    public void An_empty_recording_produces_a_valid_header_alone()
     {
         byte[] file = WavFile.Create([]);
 
@@ -90,7 +91,7 @@ public class WavFileTests
     }
 
     [Fact]
-    public void Le_silence_dure_le_temps_demande()
+    public void The_silence_lasts_as_long_as_asked()
     {
         byte[] file = WavFile.CreateSilence(TimeSpan.FromSeconds(1));
 
@@ -99,7 +100,7 @@ public class WavFileTests
     }
 
     [Fact]
-    public void Une_zone_trop_petite_pour_l_en_tete_est_refusee()
+    public void An_area_too_small_for_the_header_is_refused()
     {
         Assert.Throws<ArgumentException>(() => WavFile.WriteHeader(new byte[10], 0));
     }

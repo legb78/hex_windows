@@ -1,12 +1,12 @@
 namespace HexWin.Audio;
 
 /// <summary>
-/// Format de capture, imposé par le modèle : 16 kHz, mono, 16 bits signés.
+/// Capture format, dictated by the model: 16 kHz, mono, signed 16-bit.
 ///
-/// Enregistrer directement dans ce format évite tout rééchantillonnage entre
-/// le micro et le moteur. Un rééchantillonnage coûterait du temps sur le
-/// chemin critique — celui que l'utilisateur attend après avoir relâché la
-/// touche — et dégraderait le signal sans rien apporter.
+/// Recording straight into this format avoids any resampling between the
+/// microphone and the engine. Resampling would cost time on the critical
+/// path — the one the user waits through after releasing the key — and
+/// degrade the signal for nothing in return.
 /// </summary>
 public static class RecordingFormat
 {
@@ -17,7 +17,7 @@ public static class RecordingFormat
     public const int BytesPerSample = BitsPerSample / 8;
     public const int BytesPerSecond = SampleRate * Channels * BytesPerSample;
 
-    /// <summary>Durée représentée par une quantité d'échantillons bruts.</summary>
+    /// <summary>Duration represented by a quantity of raw samples.</summary>
     public static TimeSpan DurationOf(long pcmByteCount)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(pcmByteCount);
@@ -25,13 +25,13 @@ public static class RecordingFormat
         return TimeSpan.FromSeconds((double)pcmByteCount / BytesPerSecond);
     }
 
-    /// <summary>Quantité d'échantillons bruts occupée par une durée.</summary>
+    /// <summary>Quantity of raw samples taken up by a duration.</summary>
     public static long BytesFor(TimeSpan duration)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(duration, TimeSpan.Zero);
 
-        // Tronqué à un multiple d'échantillon complet : couper un échantillon
-        // 16 bits en deux décalerait tout le reste du flux d'un octet.
+        // Truncated to a whole number of samples: cutting a 16-bit sample in
+        // half would shift the rest of the stream by one byte.
         long bytes = (long)(duration.TotalSeconds * BytesPerSecond);
 
         return bytes - (bytes % BytesPerSample);

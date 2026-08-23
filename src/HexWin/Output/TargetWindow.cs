@@ -4,21 +4,21 @@ using System.Runtime.InteropServices;
 namespace HexWin.Output;
 
 /// <summary>
-/// Mémorise la fenêtre visée par la dictée, et la ramène au premier plan avant
-/// d'y insérer le texte.
+/// Remembers the window the dictation was aimed at, and brings it back to the
+/// foreground before inserting the text.
 ///
-/// <para><b>Le problème résolu.</b> L'insertion écrit dans la fenêtre active au
-/// moment où elle s'exécute, pas dans celle où l'utilisateur parlait. Tant que
-/// la transcription durait deux dixièmes de seconde, l'écart était théorique.
-/// Depuis que le modèle est libéré après inactivité, la première dictée qui
-/// suit une pause demande environ deux secondes — largement le temps de
-/// basculer sur une autre application. Le texte partirait alors ailleurs, dans
-/// une conversation ou un document qui n'a rien demandé.</para>
+/// <para><b>The problem solved.</b> Insertion writes into whichever window is
+/// active when it runs, not the one the user was speaking into. While
+/// transcription took two tenths of a second, the gap was theoretical. Since
+/// the model is released after a period of inactivity, the first dictation
+/// following a pause takes around two seconds — ample time to switch to
+/// another application. The text would then land elsewhere, in a conversation
+/// or a document that never asked for it.</para>
 ///
-/// <para>La restauration n'est tentée que si la fenêtre a effectivement changé,
-/// et elle est sans effet si la fenêtre visée a disparu entre-temps.</para>
+/// <para>Restoration is only attempted if the window actually changed, and it
+/// does nothing if the target window has vanished in the meantime.</para>
 /// </summary>
-[ExcludeFromCodeCoverage(Justification = "Coquille Win32 : manipule les fenêtres du bureau réel.")]
+[ExcludeFromCodeCoverage(Justification = "Win32 shell: manipulates the windows of the real desktop.")]
 internal sealed partial class TargetWindow
 {
     private readonly nint _handle;
@@ -26,9 +26,9 @@ internal sealed partial class TargetWindow
     private TargetWindow(nint handle) => _handle = handle;
 
     /// <summary>
-    /// Titre de la fenêtre, pour les journaux et le mode diagnostic. Sans lui,
-    /// on ne peut pas distinguer « la restauration a échoué » de « on a
-    /// restauré la mauvaise fenêtre » — deux pannes très différentes.
+    /// Window title, for the logs and the diagnostic mode. Without it, there
+    /// is no telling "restoration failed" apart from "we restored the wrong
+    /// window" — two very different faults.
     /// </summary>
     public unsafe string Title
     {
@@ -43,7 +43,7 @@ internal sealed partial class TargetWindow
         }
     }
 
-    /// <summary>Fenêtre actuellement au premier plan, ou aucune.</summary>
+    /// <summary>Window currently in the foreground, or none.</summary>
     public static TargetWindow? Capture()
     {
         nint handle = GetForegroundWindow();
@@ -52,8 +52,8 @@ internal sealed partial class TargetWindow
     }
 
     /// <summary>
-    /// Ramène la fenêtre au premier plan si elle ne l'est plus. Rend faux si
-    /// elle a disparu ou si Windows a refusé le changement.
+    /// Brings the window back to the foreground if it is no longer there.
+    /// Returns false if it has vanished or if Windows refused the change.
     /// </summary>
     public bool Restore()
     {
@@ -67,9 +67,9 @@ internal sealed partial class TargetWindow
             return true;
         }
 
-        // Windows n'autorise pas n'importe quel processus à voler le premier
-        // plan. Se rattacher au fil d'entrée de la fenêtre visée lève cette
-        // restriction, le temps de l'appel.
+        // Windows does not let any process steal the foreground. Attaching to
+        // the input thread of the target window lifts that restriction, for
+        // the duration of the call.
         uint us = GetCurrentThreadId();
         uint them = GetWindowThreadProcessId(_handle, 0);
 
@@ -94,16 +94,16 @@ internal sealed partial class TargetWindow
     }
 
     /// <summary>
-    /// Attend que la bascule soit effective.
+    /// Waits until the switch has actually happened.
     ///
-    /// <para><b>SetForegroundWindow est asynchrone</b> : il demande le
-    /// changement et rend la main aussitôt. Coller dans la foulée envoie les
-    /// frappes à la fenêtre <i>précédente</i>, ou à personne — le texte
-    /// disparaît sans erreur ni trace. Constaté à l'essai : la restauration
-    /// réussissait, et le texte n'arrivait nulle part.</para>
+    /// <para><b>SetForegroundWindow is asynchronous</b>: it requests the change
+    /// and returns straight away. Pasting immediately afterwards sends the
+    /// keystrokes to the <i>previous</i> window, or to nobody — the text
+    /// vanishes with no error and no trace. Seen in testing: restoration
+    /// succeeded, and the text arrived nowhere.</para>
     ///
-    /// <para>On attend donc la confirmation plutôt qu'une durée fixe, qui
-    /// serait trop courte sur une machine chargée et perdue sinon.</para>
+    /// <para>So we wait for confirmation rather than for a fixed delay, which
+    /// would be too short on a loaded machine and wasted otherwise.</para>
     /// </summary>
     private bool WaitUntilForeground()
     {

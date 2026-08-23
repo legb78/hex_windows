@@ -4,23 +4,23 @@ using Xunit;
 namespace HexWin.Tests.Output;
 
 /// <summary>
-/// L'envoi se fait en Unicode et non en codes de touches, ce qui rend
-/// l'injection indépendante de la disposition du clavier. Sur un clavier
-/// français, « a » et « q » ne sont pas là où un programme les attendrait, et
-/// « é » n'existe sur aucune touche d'un clavier américain.
+/// Sending happens in Unicode and not in key codes, which makes the injection
+/// independent of the keyboard layout. On a French keyboard, "a" and "q" are
+/// not where a program would expect them, and "é" is on no key at all of a US
+/// keyboard.
 /// </summary>
 public class UnicodeKeystrokesTests
 {
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    public void Un_texte_vide_ne_produit_aucune_frappe(string? text)
+    public void An_empty_text_produces_no_keystroke(string? text)
     {
         Assert.Empty(UnicodeKeystrokes.Build(text));
     }
 
     [Fact]
-    public void Chaque_caractere_donne_un_enfoncement_puis_un_relachement()
+    public void Each_character_gives_a_press_then_a_release()
     {
         Keystroke[] strokes = UnicodeKeystrokes.Build("ab");
 
@@ -32,10 +32,10 @@ public class UnicodeKeystrokesTests
     }
 
     [Fact]
-    public void Les_lettres_accentuees_passent_telles_quelles()
+    public void Accented_letters_pass_through_as_they_are()
     {
-        // Le point de toute l'approche : « é » n'a aucun code de touche sur un
-        // clavier américain, mais son unité de code Unicode est universelle.
+        // The whole point of the approach: "é" has no key code on a US
+        // keyboard, but its Unicode code unit is universal.
         Keystroke[] strokes = UnicodeKeystrokes.Build("é");
 
         Assert.Equal(2, strokes.Length);
@@ -43,11 +43,11 @@ public class UnicodeKeystrokesTests
     }
 
     [Fact]
-    public void Un_emoji_est_envoye_en_deux_unites_distinctes()
+    public void An_emoji_is_sent_as_two_separate_units()
     {
-        // Les caractères hors du plan multilingue de base occupent deux
-        // unités UTF-16. Les envoyer ensemble n'insérerait rien : Windows
-        // attend deux frappes et recompose lui-même.
+        // Characters outside the basic multilingual plane take two UTF-16
+        // units. Sending them together would insert nothing: Windows expects
+        // two keystrokes and recombines them itself.
         Keystroke[] strokes = UnicodeKeystrokes.Build("🙂");
 
         Assert.Equal(4, strokes.Length);
@@ -56,10 +56,10 @@ public class UnicodeKeystrokesTests
     }
 
     [Fact]
-    public void Une_fin_de_ligne_devient_la_touche_Entree()
+    public void A_line_ending_becomes_the_Enter_key()
     {
-        // Envoyé en Unicode, un saut de ligne n'insère rien du tout : il faut
-        // la vraie touche.
+        // Sent as Unicode, a line break inserts nothing at all: the real key
+        // is needed.
         Keystroke[] strokes = UnicodeKeystrokes.Build("\n");
 
         Assert.Equal(2, strokes.Length);
@@ -69,9 +69,9 @@ public class UnicodeKeystrokesTests
     }
 
     [Fact]
-    public void Une_fin_de_ligne_Windows_ne_produit_qu_une_seule_touche_Entree()
+    public void A_Windows_line_ending_produces_a_single_Enter_key()
     {
-        // Sans cette règle, « \r\n » insérerait deux sauts de ligne.
+        // Without this rule, "\r\n" would insert two line breaks.
         Keystroke[] strokes = UnicodeKeystrokes.Build("a\r\nb");
 
         Assert.Equal(6, strokes.Length);
@@ -79,7 +79,7 @@ public class UnicodeKeystrokesTests
     }
 
     [Fact]
-    public void Une_phrase_complete_conserve_son_ordre()
+    public void A_full_sentence_keeps_its_order()
     {
         const string sentence = "Bonjour Marie, à demain !";
 
@@ -90,7 +90,7 @@ public class UnicodeKeystrokesTests
     }
 
     [Fact]
-    public void Les_espaces_et_la_ponctuation_ne_sont_pas_traites_a_part()
+    public void Spaces_and_punctuation_are_not_treated_specially()
     {
         Keystroke[] strokes = UnicodeKeystrokes.Build(" ,");
 

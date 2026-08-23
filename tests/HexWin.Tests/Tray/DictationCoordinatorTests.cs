@@ -13,22 +13,23 @@ public class DictationCoordinatorTests
     }
 
     [Fact]
-    public void L_application_demarre_en_chargement()
+    public void The_application_starts_out_loading()
     {
-        // Le modèle pèse plusieurs centaines de mégaoctets : il y a forcément
-        // un moment où le raccourci ne peut pas encore répondre.
+        // The model weighs several hundred megabytes: there is inevitably a
+        // moment when the shortcut cannot respond yet.
         Assert.Equal(DictationState.Loading, new DictationCoordinator().State);
     }
 
     [Fact]
-    public void Le_raccourci_reste_sans_effet_pendant_le_chargement()
+    public void The_shortcut_does_nothing_while_loading()
     {
-        // Sans cette garde, une dictée partirait sans moteur pour la traiter.
+        // Without this guard, a dictation would start with no engine to
+        // handle it.
         Assert.False(new DictationCoordinator().TryStartRecording());
     }
 
     [Fact]
-    public void Le_raccourci_reste_sans_effet_si_le_modele_a_echoue()
+    public void The_shortcut_does_nothing_if_the_model_failed()
     {
         var coordinator = new DictationCoordinator();
         coordinator.MarkFailed();
@@ -37,7 +38,7 @@ public class DictationCoordinatorTests
     }
 
     [Fact]
-    public void Une_dictee_complete_ramene_a_l_attente()
+    public void A_complete_dictation_returns_to_waiting()
     {
         DictationCoordinator coordinator = Ready();
 
@@ -52,11 +53,11 @@ public class DictationCoordinatorTests
     }
 
     [Fact]
-    public void Une_seconde_dictee_est_refusee_pendant_la_transcription()
+    public void A_second_dictation_is_refused_during_transcription()
     {
-        // Le cas central. L'utilisateur relâche, puis represse aussitôt
-        // pendant que le moteur travaille. Sans garde, deux dictées se
-        // marcheraient dessus et le texte arriverait dans le désordre.
+        // The central case. The user releases, then presses again right away
+        // while the engine is working. With no guard, two dictations would
+        // tread on each other and the text would arrive out of order.
         DictationCoordinator coordinator = Ready();
         coordinator.TryStartRecording();
         coordinator.TryStartTranscribing();
@@ -66,7 +67,7 @@ public class DictationCoordinatorTests
     }
 
     [Fact]
-    public void Un_second_demarrage_pendant_l_enregistrement_est_refuse()
+    public void A_second_start_during_recording_is_refused()
     {
         DictationCoordinator coordinator = Ready();
         coordinator.TryStartRecording();
@@ -75,17 +76,17 @@ public class DictationCoordinatorTests
     }
 
     [Fact]
-    public void Une_transcription_sans_enregistrement_prealable_est_refusee()
+    public void Transcribing_with_no_prior_recording_is_refused()
     {
-        // Un relâchement peut arriver sans début associé, après une remise à
-        // zéro du raccourci provoquée par un verrouillage de session.
+        // A release can arrive with no matching start, after a reset of the
+        // shortcut caused by a locked session.
         DictationCoordinator coordinator = Ready();
 
         Assert.False(coordinator.TryStartTranscribing());
     }
 
     [Fact]
-    public void L_annulation_pendant_l_enregistrement_signale_qu_il_faut_interrompre()
+    public void Cancelling_during_recording_signals_that_it_must_stop()
     {
         DictationCoordinator coordinator = Ready();
         coordinator.TryStartRecording();
@@ -95,13 +96,13 @@ public class DictationCoordinatorTests
     }
 
     [Fact]
-    public void L_annulation_au_repos_ne_signale_rien()
+    public void Cancelling_while_idle_signals_nothing()
     {
         Assert.False(Ready().Cancel());
     }
 
     [Fact]
-    public void Le_raccourci_refonctionne_apres_une_annulation()
+    public void The_shortcut_works_again_after_a_cancellation()
     {
         DictationCoordinator coordinator = Ready();
         coordinator.TryStartRecording();
@@ -111,7 +112,7 @@ public class DictationCoordinatorTests
     }
 
     [Fact]
-    public void Terminer_au_repos_ne_change_rien()
+    public void Completing_while_idle_changes_nothing()
     {
         DictationCoordinator coordinator = Ready();
         coordinator.Complete();
@@ -122,9 +123,9 @@ public class DictationCoordinatorTests
     // --- Notification -----------------------------------------------------------
 
     [Fact]
-    public void Chaque_changement_est_signale()
+    public void Every_change_is_signalled()
     {
-        // C'est ce qui fait suivre l'icône de la barre système.
+        // This is what makes the tray icon follow.
         var observed = new List<DictationState>();
         var coordinator = new DictationCoordinator();
         coordinator.StateChanged += (_, state) => observed.Add(state);
@@ -140,9 +141,10 @@ public class DictationCoordinatorTests
     }
 
     [Fact]
-    public void Un_changement_sans_effet_n_est_pas_signale()
+    public void A_change_with_no_effect_is_not_signalled()
     {
-        // Sinon l'icône serait redessinée pour rien, ce qui la fait clignoter.
+        // Otherwise the icon would be redrawn for nothing, which makes it
+        // flicker.
         var observed = new List<DictationState>();
         DictationCoordinator coordinator = Ready();
         coordinator.StateChanged += (_, state) => observed.Add(state);

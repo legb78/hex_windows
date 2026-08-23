@@ -3,18 +3,16 @@ using HexWin.Configuration;
 namespace HexWin.Audio;
 
 /// <summary>
-/// Bornes de durée d'un enregistrement, et décisions qui en découlent.
+/// Duration bounds for a recording, and the decisions that follow from them.
 ///
-/// Deux situations à couvrir, toutes deux vécues par n'importe quel
-/// utilisateur de push-to-talk :
+/// Two situations to cover, both of which any push-to-talk user runs into:
 ///
-/// - l'appui accidentel, trop bref pour contenir de la parole. Le transcrire
-///   ferait tourner le moteur pour rien et risquerait d'insérer une formule
-///   inventée par le modèle ;
-/// - la touche restée enfoncée — poche, autre fenêtre, distraction. Sans
-///   plafond, l'enregistrement grossirait indéfiniment en mémoire.
+/// - the accidental tap, too brief to hold speech. Transcribing it would run
+///   the engine for nothing and risk inserting a phrase the model invented;
+/// - the key left held down — a pocket, another window, a distraction.
+///   Without a ceiling, the recording would grow in memory without end.
 ///
-/// Logique pure, donc entièrement testable sans micro.
+/// Pure logic, so entirely testable without a microphone.
 /// </summary>
 public readonly record struct RecordingGuards(TimeSpan Minimum, TimeSpan Maximum)
 {
@@ -27,12 +25,12 @@ public readonly record struct RecordingGuards(TimeSpan Minimum, TimeSpan Maximum
             TimeSpan.FromSeconds(settings.MaxRecordingSeconds));
     }
 
-    /// <summary>Appui trop bref : rien ne doit être transcrit.</summary>
+    /// <summary>Tap too brief: nothing should be transcribed.</summary>
     public bool IsTooShort(TimeSpan duration) => duration < Minimum;
 
-    /// <summary>Plafond atteint : la capture doit être coupée d'elle-même.</summary>
+    /// <summary>Ceiling reached: capture must stop on its own.</summary>
     public bool HasReachedMaximum(TimeSpan elapsed) => elapsed >= Maximum;
 
-    /// <summary>Taille au-delà de laquelle la capture cesse d'accumuler.</summary>
+    /// <summary>Size past which capture stops accumulating.</summary>
     public long MaximumBytes => RecordingFormat.BytesFor(Maximum);
 }

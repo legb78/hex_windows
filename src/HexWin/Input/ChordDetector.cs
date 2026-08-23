@@ -1,28 +1,28 @@
 namespace HexWin.Input;
 
-/// <summary>Ce que le raccourci demande à l'application de faire.</summary>
+/// <summary>What the shortcut is asking the application to do.</summary>
 public enum ChordAction
 {
     None,
 
-    /// <summary>Toutes les touches sont enfoncées : démarrer l'enregistrement.</summary>
+    /// <summary>Every key is down: start recording.</summary>
     Start,
 
-    /// <summary>Une touche a été relâchée : transcrire ce qui a été dit.</summary>
+    /// <summary>A key was released: transcribe what was said.</summary>
     Stop,
 
-    /// <summary>Une touche étrangère est intervenue : abandonner sans transcrire.</summary>
+    /// <summary>A foreign key intervened: give up without transcribing.</summary>
     Cancel,
 }
 
-/// <summary>Décision prise pour un événement clavier.</summary>
-/// <param name="Action">Ce que l'application doit faire.</param>
+/// <summary>Decision taken for one keyboard event.</summary>
+/// <param name="Action">What the application must do.</param>
 /// <param name="Swallow">
-/// Si vrai, l'événement ne doit pas être transmis à Windows.
+/// When true, the event must not be passed on to Windows.
 /// </param>
 /// <param name="NeutralizeStartMenu">
-/// Si vrai, l'appelant doit injecter une touche neutre pour empêcher
-/// l'ouverture du menu Démarrer. Voir la remarque sur l'ordre d'appui.
+/// When true, the caller must inject a neutral key to stop the Start menu from
+/// opening. See the note on press order.
 /// </param>
 public readonly record struct ChordDecision(
     ChordAction Action,
@@ -33,38 +33,37 @@ public readonly record struct ChordDecision(
 }
 
 /// <summary>
-/// Machine à états du raccourci « maintenir pour dicter ».
+/// State machine for the hold-to-dictate shortcut.
 ///
-/// Logique entièrement pure : elle ne connaît ni Win32, ni le clavier, elle
-/// se contente de recevoir des codes de touches et de décider. C'est ce qui
-/// permet de la tester, alors que le hook lui-même ne l'est pas.
+/// Entirely pure logic: it knows nothing of Win32 or of the keyboard, it just
+/// receives key codes and decides. That is what makes it testable, whereas the
+/// hook itself is not.
 ///
-/// <para><b>La règle qui gouverne tout : l'avalage doit être équilibré.</b>
-/// Un événement d'enfoncement avalé impose d'avaler le relâchement
-/// correspondant, et réciproquement. Rompre cet équilibre laisse Windows
-/// convaincu qu'une touche modificatrice est toujours enfoncée : le clavier
-/// devient inutilisable jusqu'à ce qu'on represse la touche fantôme.</para>
+/// <para><b>The rule that governs everything: swallowing must be balanced.</b>
+/// A swallowed key-down requires the matching key-up to be swallowed too, and
+/// the other way round. Breaking that balance leaves Windows convinced a
+/// modifier is still held: the keyboard becomes unusable until the phantom key
+/// is pressed again.</para>
 ///
-/// <para>Sur le menu Démarrer : Windows l'ouvre quand la touche Windows est
-/// pressée puis relâchée sans qu'aucune autre touche n'intervienne. Comme on
-/// avale la touche qui complète le raccourci, Windows ne voit jamais cet
-/// appui — sauf si l'utilisateur a pressé Windows <i>en premier</i>, auquel
-/// cas l'appui a déjà été transmis. D'où
-/// <see cref="ChordDecision.NeutralizeStartMenu"/>, qui demande alors à
-/// l'appelant d'injecter une touche sans effet.</para>
+/// <para>On the Start menu: Windows opens it when the Windows key is pressed
+/// and released with no other key in between. Since the key that completes the
+/// shortcut is swallowed, Windows never sees that press — unless the user
+/// pressed Windows <i>first</i>, in which case the press has already been
+/// delivered. Hence <see cref="ChordDecision.NeutralizeStartMenu"/>, which then
+/// asks the caller to inject a key with no effect.</para>
 /// </summary>
 public sealed class ChordDetector
 {
     /// <summary>
-    /// Codes acceptés pour chaque touche du raccourci. Un « slot » par touche
-    /// demandée ; « Ctrl » accepte la touche gauche comme la droite.
+    /// Codes accepted for each key of the shortcut. One slot per requested
+    /// key; "Ctrl" accepts the left key as well as the right one.
     /// </summary>
     private readonly int[][] _requirements;
 
-    /// <summary>Code réellement enfoncé qui satisfait chaque slot, ou 0.</summary>
+    /// <summary>Code actually held that satisfies each slot, or 0.</summary>
     private readonly int[] _satisfiedBy;
 
-    /// <summary>Touches dont on a avalé l'enfoncement.</summary>
+    /// <summary>Keys whose key-down we swallowed.</summary>
     private readonly HashSet<int> _swallowed = [];
 
     public ChordDetector(IEnumerable<string> keyNames)
@@ -75,21 +74,20 @@ public sealed class ChordDetector
 
         if (_requirements.Length == 0)
         {
-            throw new ArgumentException("Le raccourci doit comporter au moins une touche.", nameof(keyNames));
+            throw new ArgumentException("The shortcut must hold at least one key.", nameof(keyNames));
         }
 
         _satisfiedBy = new int[_requirements.Length];
     }
 
-    /// <summary>Vrai entre le moment où le raccourci est complet et son relâchement.</summary>
+    /// <summary>True between the moment the shortcut completes and its release.</summary>
     public bool IsActive { get; private set; }
 
     public ChordDecision OnKeyDown(int virtualKey)
     {
-        // Répétition automatique : maintenir une touche envoie des
-        // enfoncements en rafale. Ils ne doivent surtout pas relancer
-        // l'enregistrement, mais doivent rester avalés si l'appui initial
-        // l'a été.
+        // Auto-repeat: holding a key sends key-downs in bursts. They must not
+        // restart the recording, but they must stay swallowed if the initial
+        // press was.
         if (IsAlreadySatisfying(virtualKey))
         {
             return new ChordDecision(ChordAction.None, _swallowed.Contains(virtualKey));
@@ -99,9 +97,9 @@ public sealed class ChordDetector
 
         if (slot < 0)
         {
-            // Touche étrangère au raccourci. Pendant une dictée, elle
-            // l'interrompt : Ctrl+Win+D crée un bureau virtuel, l'utilisateur
-            // ne demandait pas une transcription.
+            // Key foreign to the shortcut. During a dictation it interrupts:
+            // Ctrl+Win+D creates a virtual desktop, and the user was not
+            // asking for a transcription.
             if (IsActive)
             {
                 IsActive = false;
@@ -115,9 +113,9 @@ public sealed class ChordDetector
 
         if (!AllSatisfied() || IsActive)
         {
-            // Raccourci encore incomplet : on laisse passer. Avaler ici
-            // casserait Ctrl+C, puisqu'on ne peut pas encore savoir si
-            // l'utilisateur vise notre raccourci.
+            // Shortcut still incomplete: let it through. Swallowing here would
+            // break Ctrl+C, since there is no way yet to know whether the user
+            // is aiming for our shortcut.
             return ChordDecision.Ignore;
         }
 
@@ -152,12 +150,11 @@ public sealed class ChordDetector
     }
 
     /// <summary>
-    /// Oublie tout état en cours.
+    /// Forgets any state in progress.
     ///
-    /// Indispensable quand Windows cesse de livrer les relâchements : session
-    /// verrouillée, changement d'utilisateur, boîte de dialogue élevée qui
-    /// prend le clavier. Sans remise à zéro, une touche resterait
-    /// éternellement « enfoncée » et le raccourci ne répondrait plus.
+    /// Indispensable when Windows stops delivering key-ups: a locked session,
+    /// a user switch, an elevated dialog taking the keyboard. Without a reset,
+    /// a key would stay "held" forever and the shortcut would stop responding.
     /// </summary>
     public ChordDecision Reset()
     {
@@ -193,9 +190,8 @@ public sealed class ChordDetector
     private bool AllSatisfied() => Array.IndexOf(_satisfiedBy, 0) < 0;
 
     /// <summary>
-    /// Vrai si une touche Windows du raccourci a été transmise à Windows
-    /// avant que le raccourci ne soit complet — c'est-à-dire si
-    /// l'utilisateur l'a pressée en premier.
+    /// True when a Windows key of the shortcut was delivered to Windows before
+    /// the shortcut completed — that is, when the user pressed it first.
     /// </summary>
     private bool WindowsKeyAlreadyDelivered(int completingKey) =>
         _satisfiedBy.Any(key => key != 0 && key != completingKey && VirtualKeys.IsWindowsKey(key));

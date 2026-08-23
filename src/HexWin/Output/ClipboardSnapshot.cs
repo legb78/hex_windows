@@ -5,20 +5,20 @@ using System.Runtime.InteropServices;
 namespace HexWin.Output;
 
 /// <summary>
-/// Copie du presse-papiers, à restaurer après un collage.
+/// A copy of the clipboard, to be restored after a paste.
 ///
-/// <para><b>Pourquoi une copie et non une référence.</b>
-/// <c>Clipboard.GetDataObject()</c> ne rend pas les données mais un objet qui
-/// pointe vers le contenu courant du presse-papiers. Dès qu'on écrit par
-/// dessus, cette référence ne désigne plus rien : la « restaurer » vide le
-/// presse-papiers au lieu de le rétablir. Il faut donc extraire les données
-/// tant qu'elles sont encore là.</para>
+/// <para><b>Why a copy and not a reference.</b>
+/// <c>Clipboard.GetDataObject()</c> does not hand back the data but an object
+/// pointing at the current clipboard content. As soon as something is written
+/// over it, that reference designates nothing: "restoring" it empties the
+/// clipboard instead of putting it back. The data therefore has to be
+/// extracted while it is still there.</para>
 ///
-/// <para>Trois formes sont couvertes — texte, image, liste de fichiers — ce
-/// qui recouvre l'essentiel des usages. Un format exotique n'est pas
-/// sauvegardé : mieux vaut ne rien restaurer que d'écrire n'importe quoi.</para>
+/// <para>Three shapes are covered — text, image, file list — which spans
+/// nearly every use. An exotic format is not saved: better to restore nothing
+/// than to write something wrong.</para>
 /// </summary>
-[ExcludeFromCodeCoverage(Justification = "Coquille Win32 : le presse-papiers est une ressource globale du bureau.")]
+[ExcludeFromCodeCoverage(Justification = "Win32 shell: the clipboard is a global desktop resource.")]
 internal sealed class ClipboardSnapshot
 {
     private readonly string? _text;
@@ -32,13 +32,13 @@ internal sealed class ClipboardSnapshot
         _files = files;
     }
 
-    /// <summary>Vrai si quelque chose a pu être copié, donc restauré ensuite.</summary>
+    /// <summary>True if something could be copied, and so restored later.</summary>
     public bool HasContent => _text is not null || _image is not null || _files is not null;
 
     /// <summary>
-    /// Extrait le contenu courant du presse-papiers. Rend un instantané vide
-    /// si le presse-papiers est verrouillé par une autre application : la
-    /// dictée reste prioritaire sur la restauration.
+    /// Extracts the current clipboard content. Returns an empty snapshot if
+    /// the clipboard is locked by another application: dictation takes
+    /// priority over restoration.
     /// </summary>
     public static ClipboardSnapshot Capture()
     {
@@ -61,22 +61,21 @@ internal sealed class ClipboardSnapshot
         }
         catch (ExternalException)
         {
-            // Presse-papiers occupé par une autre application.
+            // Clipboard busy in another application.
         }
 
         return new ClipboardSnapshot(null, null, null);
     }
 
     /// <summary>
-    /// Réécrit le contenu sauvegardé, ou vide le presse-papiers si rien n'avait
-    /// pu l'être.
+    /// Writes the saved content back, or empties the clipboard if nothing
+    /// could be saved.
     ///
-    /// <para>Le vidage compte autant que la restauration. Sans lui, un
-    /// presse-papiers initialement vide — ou verrouillé par une autre
-    /// application au moment de la capture — laissait le texte dicté en place
-    /// indéfiniment. Un programme n'a pas besoin de privilège particulier pour
-    /// provoquer ce cas : il suffit qu'il tienne le presse-papiers ouvert
-    /// pendant la dictée.</para>
+    /// <para>The emptying matters as much as the restoring. Without it, a
+    /// clipboard that started out empty — or was locked by another application
+    /// at capture time — left the dictated text in place indefinitely. No
+    /// special privilege is needed to cause that: a program merely has to hold
+    /// the clipboard open during the dictation.</para>
     /// </summary>
     public void Restore()
     {
@@ -98,17 +97,17 @@ internal sealed class ClipboardSnapshot
 
             if (content is not null)
             {
-                // copy: true demande à Windows de conserver les données après
-                // la fin du processus. Sans ce drapeau, le presse-papiers de
-                // l'utilisateur se viderait à la fermeture de l'application —
-                // ce qui est exactement ce qu'on cherchait à éviter.
+                // copy: true asks Windows to keep the data after the process
+                // ends. Without that flag, the clipboard would empty itself
+                // when the application closes — exactly what we were trying to
+                // avoid.
                 Clipboard.SetDataObject(content, copy: true);
             }
         }
         catch (ExternalException)
         {
-            // Presse-papiers occupé : on renonce sans bruit plutôt que de
-            // faire échouer une dictée par ailleurs réussie.
+            // Clipboard busy: give up quietly rather than fail an otherwise
+            // successful dictation.
         }
     }
 
@@ -120,7 +119,7 @@ internal sealed class ClipboardSnapshot
         }
         catch (ExternalException)
         {
-            // Idem : occupé, on renonce.
+            // Same again: busy, so give up.
         }
     }
 }

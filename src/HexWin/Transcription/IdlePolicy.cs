@@ -1,36 +1,34 @@
 namespace HexWin.Transcription;
 
 /// <summary>
-/// Décide quand le modèle doit être libéré faute d'usage.
+/// Decides when the model should be released for lack of use.
 ///
-/// Le modèle occupe environ un gigaoctet une fois chargé. Le garder résident
-/// donne une réponse en quelques dizaines de millisecondes ; le libérer rend
-/// cette mémoire au système au prix d'un rechargement de quelques secondes à
-/// la dictée suivante.
+/// The model takes about a gigabyte once loaded. Keeping it resident answers
+/// in a few tens of milliseconds; releasing it hands that memory back to the
+/// system at the cost of a reload of a few seconds on the next dictation.
 ///
-/// Ce coût est largement masqué en pratique : le rechargement est déclenché
-/// dès l'<i>enfoncement</i> de la touche, donc pendant que l'utilisateur
-/// parle, et non au relâchement.
+/// That cost is largely hidden in practice: the reload is triggered on the key
+/// <i>press</i>, so while the user is still speaking, rather than on release.
 ///
-/// Logique pure : l'horloge est fournie par l'appelant, ce qui rend chaque
-/// scénario descriptible en test sans attendre réellement.
+/// Pure logic: the clock is supplied by the caller, which makes every scenario
+/// describable in a test without actually waiting.
 /// </summary>
 public readonly record struct IdlePolicy(TimeSpan Timeout)
 {
-    /// <summary>Un délai nul ou négatif garde le modèle résident indéfiniment.</summary>
+    /// <summary>A zero or negative delay keeps the model resident forever.</summary>
     public bool IsEnabled => Timeout > TimeSpan.Zero;
 
     public static IdlePolicy FromMinutes(int minutes) =>
         new(minutes > 0 ? TimeSpan.FromMinutes(minutes) : TimeSpan.Zero);
 
     /// <summary>
-    /// Vrai s'il faut libérer le modèle maintenant.
+    /// True if the model should be released now.
     /// </summary>
-    /// <param name="sinceLastUse">Temps écoulé depuis la dernière dictée.</param>
+    /// <param name="sinceLastUse">Time elapsed since the last dictation.</param>
     /// <param name="isBusy">
-    /// Vrai si une dictée est en cours. Libérer à cet instant ferait échouer
-    /// la transcription que l'utilisateur attend — le délai d'inactivité peut
-    /// tomber pile pendant qu'il parle.
+    /// True if a dictation is under way. Releasing at that moment would fail
+    /// the very transcription the user is waiting for — the idle deadline can
+    /// fall exactly while they are speaking.
     /// </param>
     public bool ShouldUnload(TimeSpan sinceLastUse, bool isBusy)
     {

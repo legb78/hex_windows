@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HexWin — Local voice dictation for Windows, offline speech to text</title>
+<meta name="description" content="Free, open-source push-to-talk dictation for Windows. Hold a hotkey, speak, release — the text lands at your cursor. Runs entirely offline on CPU with NVIDIA Parakeet TDT v3. No cloud, no account, no subscription.">
+<link rel="canonical" href="https://legb78.github.io/hex_windows/">
+<meta name="theme-color" content="#0d1117">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://legb78.github.io/hex_windows/">
+<meta property="og:title" content="HexWin — Local voice dictation for Windows">
+<meta property="og:description" content="Hold Ctrl + Win, speak, release. The text lands at your cursor. Everything runs on your machine — no cloud, no account, no subscription.">
+<meta property="og:image" content="https://legb78.github.io/hex_windows/architecture.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><text y=%2226%22 font-size=%2226%22>&#127908;</text></svg>">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "HexWin",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Windows 10, Windows 11",
+  "description": "Local voice dictation for Windows. Hold a hotkey, speak, release — the text lands at your cursor. Runs entirely on the machine with NVIDIA Parakeet TDT v3.",
+  "url": "https://legb78.github.io/hex_windows/",
+  "downloadUrl": "https://github.com/legb78/hex_windows/releases/latest",
+  "license": "https://www.apache.org/licenses/LICENSE-2.0",
+  "author": { "@type": "Person", "name": "Djamel OUAZAR" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #151b23; --line: #262d36;
+    --ink: #e6edf3; --muted: #9198a1; --accent: #58a6ff; --warm: #f0883e;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+  a { color: var(--accent); }
+
+  header { padding: 96px 0 72px; text-align: center; }
+  h1 { font-size: clamp(2.6rem, 8vw, 3.8rem); margin: 0; letter-spacing: -.03em; }
+  .tag { font-size: clamp(1.1rem, 3vw, 1.35rem); margin: 14px 0 8px; }
+  .sub { color: var(--muted); max-width: 30rem; margin: 0 auto; }
+
+  .chord { margin: 34px 0; color: var(--muted); }
+  kbd {
+    font: 600 .95rem/1 var(--mono); color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-bottom-width: 3px; border-radius: 6px;
+    padding: 8px 12px; display: inline-block;
+  }
+
+  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 30px; }
+  .btn {
+    display: inline-block; padding: 12px 22px; border-radius: 8px; font-weight: 600;
+    text-decoration: none; border: 1px solid var(--line);
+  }
+  .btn.primary { background: var(--accent); color: #06121f; border-color: transparent; }
+  .btn.ghost { color: var(--ink); background: var(--panel); }
+  .meta { color: var(--muted); font-size: .85rem; margin-top: 18px; }
+
+  section { padding: 44px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 1.45rem; letter-spacing: -.02em; margin: 0 0 16px; }
+  p { margin: 0 0 16px; }
+  .muted { color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 16px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: .85rem; text-transform: uppercase; letter-spacing: .05em; }
+  td:last-child { font-family: var(--mono); color: var(--warm); }
+
+  pre {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 18px; overflow-x: auto; font: .9rem/1.7 var(--mono); margin: 0 0 16px;
+  }
+  pre .c { color: var(--muted); }
+  code { font: .9em var(--mono); background: var(--panel); padding: 2px 6px; border-radius: 4px; }
+  pre code { background: none; padding: 0; }
+
+  ul { padding-left: 20px; margin: 0 0 16px; }
+  li { margin-bottom: 8px; }
+  img { max-width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); }
+
+  footer { padding: 40px 0 72px; border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; }
+  footer p { margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header>
+  <h1>HexWin</h1>
+  <p class="tag">Local voice dictation for Windows</p>
+  <p class="sub">Hold the hotkey, speak, release. The text lands at your cursor —
+  in any application, without ever leaving your machine.</p>
+
+  <p class="chord"><kbd>Ctrl</kbd> + <kbd>&#8862; Win</kbd> &nbsp;→&nbsp; speak &nbsp;→&nbsp; release</p>
+
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/legb78/hex_windows/releases/latest">Download for Windows</a>
+    <a class="btn ghost" href="https://github.com/legb78/hex_windows">Source on GitHub</a>
+  </div>
+  <p class="meta">Windows 10 / 11 · x64 · Apache 2.0 · no account, no subscription, no telemetry</p>
+</header>
+
+<section>
+  <h2>It answers before you finish thinking</h2>
+  <p>Measured on a Dell Pro Max 16 (Core Ultra 7 255H), <strong>on CPU</strong> — no
+  graphics card involved.</p>
+  <table>
+    <thead><tr><th>Speech length</th><th>Wait after release</th></tr></thead>
+    <tbody>
+      <tr><td>0.6 s</td><td>0.05 s</td></tr>
+      <tr><td>1.6 s</td><td>0.08 s</td></tr>
+      <tr><td>5 s</td><td>0.19 s</td></tr>
+      <tr><td>40 s</td><td>1.58 s</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">A one-sentence dictation — the normal case — is inserted faster
+  than you can move your hand back to the keyboard.</p>
+</section>
+
+<section>
+  <h2>Why it is fast: Parakeet, not Whisper</h2>
+  <p>Whisper was tried first, and dropped after measurement. It is an
+  autoregressive encoder-decoder, so it pays a <strong>fixed cost of about 1.4 s
+  per transcription</strong> however short the audio is. On a single sentence,
+  that cost is paid in full.</p>
+  <p><strong>Parakeet TDT v3</strong> is a transducer and has no such bottleneck.
+  Same recordings, Parakeet on CPU against Whisper on GPU, five-second clip:
+  <strong>2.29 s → 0.19 s</strong>.</p>
+  <p>It is the same engine <a href="https://github.com/kitlangton/Hex">Hex</a> uses
+  on macOS, and it recognises the spoken language on its own among
+  <strong>25 European languages</strong> — there is no language setting to get wrong.</p>
+</section>
+
+<section>
+  <h2>Nothing leaves your machine</h2>
+  <ul>
+    <li><strong>No cloud, no account, no API key.</strong> Once the model is
+    downloaded, HexWin needs no network connection at all.</li>
+    <li><strong>Your audio never touches the disk.</strong> The recording lives in
+    memory and is gone the moment the transcription ends — there is no file to
+    find, and nothing to clean up.</li>
+    <li><strong>Dictations stay out of clipboard history.</strong> The text is
+    handed over as a private transfer, so it never resurfaces in
+    <kbd>&#8862; Win</kbd> + <kbd>V</kbd>, and whatever you had copied before is
+    put back afterwards.</li>
+    <li><strong>The keyboard hook watches for one chord</strong> and nothing else.
+    It stores no keystrokes. The code is short and meant to be read:
+    <a href="https://github.com/legb78/hex_windows/blob/main/src/HexWin/Input/KeyboardHook.cs">KeyboardHook.cs</a>.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Two commands to start</h2>
+  <p>Download the archive from the
+  <a href="https://github.com/legb78/hex_windows/releases/latest">latest release</a>,
+  unzip it, then in PowerShell:</p>
+<pre><code>.\get-model.ps1     <span class="c"># about 480 MB, once</span>
+.\HexWin.exe</code></pre>
+  <p>Nothing else to install — <strong>not even .NET</strong>, which is bundled
+  inside the executable. A tray icon shows the state: grey while the model loads,
+  blue when ready, red while recording, orange while transcribing.</p>
+</section>
+
+<section>
+  <h2>What to expect, stated up front</h2>
+  <ul>
+    <li><strong>SmartScreen will warn you once.</strong> The executable is not
+    code-signed, so Windows shows “Windows protected your PC”. Click
+    <em>More info</em> → <em>Run anyway</em>. A signing certificate costs several
+    hundred euros a year; this project does not have one.</li>
+    <li><strong>Some antivirus products flag it</strong>, because a global keyboard
+    hook is a pattern they watch for. That hook is exactly what makes push-to-talk
+    work from any window.</li>
+    <li><strong>It cannot type into elevated windows</strong> unless it is elevated
+    too. That is Windows UIPI isolation doing its job, not a bug.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>How it is built</h2>
+  <p>Two layers, kept apart on purpose. The Win32 shells — keyboard hook, audio
+  capture, engine, text injection — wire up system APIs and decide nothing. Every
+  decision lives in a pure layer tested without Windows: chord detection, keyboard
+  auto-repeat, keys released out of order, a key left stuck after a session lock,
+  a second dictation triggered while one is still running.</p>
+  <img src="architecture.png" alt="HexWin architecture: Win32 shells around a pure decision layer">
+</section>
+
+<footer>
+  <p>HexWin is free and open source under the
+  <a href="https://github.com/legb78/hex_windows/blob/main/LICENSE">Apache 2.0</a>
+  licence. Copyright 2026 Djamel OUAZAR.</p>
+  <p>Speech recognition by <strong>Parakeet TDT 0.6B v3</strong>, by NVIDIA
+  Corporation, distributed under
+  <a href="https://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a>, run through
+  <a href="https://github.com/k2-fsa/sherpa-onnx">sherpa-onnx</a>. Full attributions
+  in <a href="https://github.com/legb78/hex_windows/blob/main/NOTICE">NOTICE</a>.</p>
+  <p>Inspired by <a href="https://github.com/kitlangton/Hex">Hex</a> for macOS —
+  same idea, same engine choice, no shared code.</p>
+</footer>
+
+</div>
+</body>
+</html>

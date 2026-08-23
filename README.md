@@ -6,6 +6,9 @@ the text lands at your cursor.
 Everything runs **on your machine**. No cloud service, no subscription, no
 network connection needed once the model is downloaded.
 
+**[legb78.github.io/hex_windows](https://legb78.github.io/hex_windows/)** — the
+short version, if you would rather see it than read this.
+
 ![Architecture](docs/architecture.png)
 
 ## How fast it is

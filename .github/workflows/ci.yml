@@ -3,18 +3,24 @@ name: CI
 # Windows runners bill at double the Actions rate. The repository is public, so
 # minutes are free today — but the settings below cost nothing and keep runs
 # quick, which matters more than the invoice:
-#   - paths-ignore  : no build for a documentation-only change
+#   - paths-ignore  : no build when a documentation-only change lands on develop
+#                     (on pull requests it is off on purpose, see below)
 #   - concurrency   : a new push cancels the previous run of the same PR
 #   - timeout       : caps a run that would otherwise spin
 #   - NuGet cache   : avoids re-downloading packages every run
 
 on:
+  # No paths-ignore here, deliberately. The branch rules require the job below
+  # to report before a pull request can merge, and a workflow that never
+  # triggers never reports: a documentation-only pull request would wait for a
+  # verdict that could not arrive, and no one could merge it — not even with
+  # admin rights, since the rulesets grant no bypass. Found the hard way on a
+  # pull request touching SECURITY.md alone.
+  #
+  # The wasted minute on a documentation change is the price of that guarantee,
+  # and the repository being public, those minutes are free.
   pull_request:
     branches: [main, develop]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.gitignore'
   # Pushes to main deliberately do NOT run here. A commit reaching main comes
   # from develop and was already validated by its pull request, and the release
   # workflow re-runs the tests before publishing. Keeping this trigger meant

@@ -97,7 +97,10 @@ public sealed class AppSettings
     /// <summary>Cue marking the start and the end of a recording.</summary>
     public FeedbackMode Feedback { get; set; } = FeedbackMode.Both;
 
-    /// <summary>Colour of the circle, written #RRGGBB.</summary>
+    /// <summary>
+    /// Colour of the circle: <c>auto</c> to follow the state colours of the
+    /// tray icon, or #RRGGBB to force one colour whatever the state.
+    /// </summary>
     public string FeedbackColor { get; set; } = DefaultFeedbackColor;
 
     /// <summary>Diameter of the circle, in pixels.</summary>
@@ -119,8 +122,12 @@ public sealed class AppSettings
     private const int DefaultThreads = 4;
     private const int DefaultUnloadAfterMinutes = 5;
 
-    /// <summary>The blue of the ready-state tray icon, so the two read as one.</summary>
-    public const string DefaultFeedbackColor = "#1971C2";
+    /// <summary>
+    /// Follow the tray icon rather than impose a colour: red while recording,
+    /// orange while transcribing. A circle that stayed one colour would say
+    /// less than the icon it sits next to.
+    /// </summary>
+    private const string DefaultFeedbackColor = "auto";
 
     private const int DefaultFeedbackSize = 64;
     private const int DefaultFeedbackOpacity = 235;
@@ -266,8 +273,10 @@ public sealed class AppSettings
             Feedback = FeedbackMode.Both;
         }
 
-        // Rewritten canonically so the file keeps one spelling of a colour
-        // whichever of the accepted ones was typed.
+        // A colour is rewritten canonically so the file keeps one spelling of
+        // it; anything else, "auto" included, means the state colours. A typo
+        // therefore lands on the palette rather than on some colour the user
+        // never asked for.
         FeedbackColor = HexColor.TryParse(FeedbackColor, out int rgb)
             ? HexColor.ToHex(rgb)
             : DefaultFeedbackColor;

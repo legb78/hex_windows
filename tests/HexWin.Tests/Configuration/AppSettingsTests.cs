@@ -20,7 +20,7 @@ public class AppSettingsTests
         Assert.Equal("cpu", settings.Provider);
         Assert.Equal(InsertionMode.Paste, settings.Insertion);
         Assert.Equal(FeedbackMode.Both, settings.Feedback);
-        Assert.Equal("#1971C2", settings.FeedbackColor);
+        Assert.Equal("auto", settings.FeedbackColor);
         Assert.Equal(64, settings.FeedbackSize);
         Assert.Equal(DefaultModel, settings.ModelPath);
         Assert.True(settings.LogEnabled);
@@ -312,14 +312,16 @@ public class AppSettingsTests
     }
     [Theory]
     [InlineData("\"rouge\"")]
+    [InlineData("\"auto\"")]
     [InlineData("\"#12345\"")]
     [InlineData("\"\"")]
     [InlineData("null")]
-    public void An_unreadable_colour_falls_back_to_the_default(string value)
+    public void An_unreadable_colour_falls_back_to_the_state_colours(string value)
     {
+        // Including the word "auto", which is how one asks for them on purpose.
         AppSettings settings = AppSettings.Parse($$"""{"feedbackColor": {{value}}}""");
 
-        Assert.Equal("#1971C2", settings.FeedbackColor);
+        Assert.Equal("auto", settings.FeedbackColor);
     }
 
     [Theory]

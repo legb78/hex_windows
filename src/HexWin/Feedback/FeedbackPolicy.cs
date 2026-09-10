@@ -17,9 +17,12 @@ public enum CueTone
 }
 
 /// <summary>What the user should see and hear at a given moment.</summary>
-/// <param name="OverlayVisible">Whether the circle belongs on screen.</param>
+/// <param name="Overlay">
+/// State the circle should show, in that state's colour, or <c>null</c> when
+/// nothing belongs on the screen.
+/// </param>
 /// <param name="Tone">Tone to play, if any.</param>
-public readonly record struct FeedbackCue(bool OverlayVisible, CueTone Tone);
+public readonly record struct FeedbackCue(DictationState? Overlay, CueTone Tone);
 
 /// <summary>
 /// Turns state changes into cues.
@@ -34,6 +37,12 @@ public readonly record struct FeedbackCue(bool OverlayVisible, CueTone Tone);
 /// <see cref="DictationState.Recording"/> closes the loop with the end tone</b>,
 /// cancellations included. A start heard with no end would leave the user
 /// wondering whether the microphone is still open.
+///
+/// The circle follows a different rule, the tray icon's: it stays on screen
+/// for as long as the application is busy — recording, then transcribing —
+/// and changes colour rather than vanishing. That is what tells the user a
+/// shortcut pressed during a transcription is being ignored, instead of
+/// leaving them pressing at nothing.
 /// </summary>
 public sealed class FeedbackPolicy
 {
@@ -72,8 +81,12 @@ public sealed class FeedbackPolicy
             _ => CueTone.None,
         };
 
+        // The circle mirrors the tray icon: shown while something is
+        // happening, in that state's own colour, and absent at rest.
+        bool onScreen = state is DictationState.Recording or DictationState.Transcribing;
+
         return new FeedbackCue(
-            isRecording && ShowsCircle,
+            onScreen && ShowsCircle ? state : null,
             PlaysTone ? tone : CueTone.None);
     }
 }

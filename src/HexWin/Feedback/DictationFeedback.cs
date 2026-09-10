@@ -35,7 +35,7 @@ internal sealed class DictationFeedback : IDisposable
     {
         FeedbackCue cue = _policy.Next(state);
 
-        _overlay?.SetVisible(cue.OverlayVisible);
+        _overlay?.Apply(cue.Overlay);
         _tones?.Play(cue.Tone);
     }
 

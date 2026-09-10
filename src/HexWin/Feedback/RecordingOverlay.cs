@@ -3,11 +3,18 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using HexWin.Configuration;
+using HexWin.Tray;
 
 namespace HexWin.Feedback;
 
 /// <summary>
-/// The circle shown at the top of the screen while the microphone is open.
+/// The circle shown at the top of the screen while something is happening.
+///
+/// <para>It is the tray icon repeated where the eye actually is. Same colours,
+/// from <see cref="StatePalette"/>, so the two can never disagree: red while
+/// the microphone is open, orange while the engine works. Nothing is shown at
+/// rest — a permanent mark on the screen would be noise, and the tray already
+/// says "ready" to whoever goes looking.</para>
 ///
 /// <para><b>It must never take the focus.</b> The window a dictation is aimed
 /// at is captured with GetForegroundWindow the moment the shortcut is released
@@ -27,12 +34,16 @@ namespace HexWin.Feedback;
 [ExcludeFromCodeCoverage(Justification = "Win32 shell: needs an interactive session and a real desktop.")]
 internal sealed partial class RecordingOverlay : Form
 {
+    /// <summary>The states worth putting on the screen. Idle is not one.</summary>
+    private static readonly DictationState[] PaintedStates =
+        [DictationState.Recording, DictationState.Transcribing];
+
     private readonly int _diameter;
     private readonly int _topMargin;
     private readonly byte _opacity;
-    private readonly Bitmap _circle;
+    private readonly Dictionary<DictationState, Bitmap> _circles = [];
 
-    private bool _shown;
+    private DictationState? _showing;
 
     public RecordingOverlay(AppSettings settings)
     {
@@ -46,7 +57,10 @@ internal sealed partial class RecordingOverlay : Form
         StartPosition = FormStartPosition.Manual;
         Size = new Size(_diameter, _diameter);
 
-        _circle = DrawCircle(_diameter, settings.FeedbackColor);
+        foreach (DictationState state in PaintedStates)
+        {
+            _circles[state] = DrawCircle(_diameter, ColorFor(state, settings.FeedbackColor));
+        }
 
         // The window is brought into existence now rather than on the first
         // dictation. Showing it happens inside the keyboard hook callback,
@@ -69,17 +83,20 @@ internal sealed partial class RecordingOverlay : Form
     /// <summary>Belt and braces alongside WS_EX_NOACTIVATE.</summary>
     protected override bool ShowWithoutActivation => true;
 
-    /// <summary>Shows or hides the circle. Called on the interface thread.</summary>
-    public void SetVisible(bool visible)
+    /// <summary>
+    /// Shows the circle in the colour of the given state, or hides it when given
+    /// none. Called on the interface thread.
+    /// </summary>
+    public void Apply(DictationState? state)
     {
-        if (visible == _shown)
+        if (state == _showing)
         {
             return;
         }
 
-        _shown = visible;
+        _showing = state;
 
-        if (!visible)
+        if (state is not { } visible)
         {
             ShowWindow(Handle, SwHide);
             return;
@@ -88,9 +105,18 @@ internal sealed partial class RecordingOverlay : Form
         // Positioned and painted before being shown: the other way round, the
         // first frame appears as an unpainted rectangle.
         MoveToActiveScreen();
-        Render();
+        Render(_circles[visible]);
         ShowWindow(Handle, SwShowNoActivate);
     }
+
+    /// <summary>
+    /// A configured colour overrides every state; anything else — "auto", or a
+    /// value that does not parse — leaves the palette in charge.
+    /// </summary>
+    private static Color ColorFor(DictationState state, string configured) =>
+        HexColor.TryParse(configured, out int rgb)
+            ? Color.FromArgb(255, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF)
+            : StatePalette.For(state);
 
     /// <summary>
     /// Centres the circle at the top of the screen holding the pointer. On a
@@ -111,7 +137,7 @@ internal sealed partial class RecordingOverlay : Form
             top);
     }
 
-    private void Render()
+    private void Render(Bitmap circle)
     {
         nint screen = GetDC(0);
         nint memory = CreateCompatibleDC(screen);
@@ -119,7 +145,7 @@ internal sealed partial class RecordingOverlay : Form
         // GetHbitmap composites over the colour given; over a fully transparent
         // one that multiplies each channel by its own alpha — exactly the
         // premultiplied form UpdateLayeredWindow expects.
-        nint bitmap = _circle.GetHbitmap(Color.FromArgb(0));
+        nint bitmap = circle.GetHbitmap(Color.FromArgb(0));
         nint previous = SelectObject(memory, bitmap);
 
         var size = new NativeSize { Width = _diameter, Height = _diameter };
@@ -147,22 +173,14 @@ internal sealed partial class RecordingOverlay : Form
         }
     }
 
-    private static Bitmap DrawCircle(int diameter, string color)
+    private static Bitmap DrawCircle(int diameter, Color color)
     {
         var bitmap = new Bitmap(diameter, diameter, PixelFormat.Format32bppArgb);
 
         using var graphics = Graphics.FromImage(bitmap);
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-        // Normalize has already rejected anything unparseable. The fallback is
-        // for a construction that bypassed it, and matters: without it an
-        // unreadable colour would draw a black disc rather than the default one.
-        if (!HexColor.TryParse(color, out int rgb))
-        {
-            HexColor.TryParse(AppSettings.DefaultFeedbackColor, out rgb);
-        }
-
-        using var fill = new SolidBrush(Color.FromArgb(255, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF));
+        using var fill = new SolidBrush(color);
         graphics.FillEllipse(fill, 1, 1, diameter - 3, diameter - 3);
 
         // A white rim keeps the circle legible whatever colour it is given and
@@ -180,7 +198,12 @@ internal sealed partial class RecordingOverlay : Form
     {
         if (disposing)
         {
-            _circle.Dispose();
+            foreach (Bitmap circle in _circles.Values)
+            {
+                circle.Dispose();
+            }
+
+            _circles.Clear();
         }
 
         base.Dispose(disposing);

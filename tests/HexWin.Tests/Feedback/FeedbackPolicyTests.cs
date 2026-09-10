@@ -32,7 +32,7 @@ public class FeedbackPolicyTests
         FeedbackCue cue = new FeedbackPolicy(FeedbackMode.Both).Next(DictationState.Idle);
 
         Assert.Equal(CueTone.None, cue.Tone);
-        Assert.False(cue.OverlayVisible);
+        Assert.Null(cue.Overlay);
     }
 
     [Fact]
@@ -40,19 +40,22 @@ public class FeedbackPolicyTests
     {
         FeedbackCue cue = Ready().Next(DictationState.Recording);
 
-        Assert.True(cue.OverlayVisible);
+        Assert.Equal(DictationState.Recording, cue.Overlay);
         Assert.Equal(CueTone.Start, cue.Tone);
     }
 
     [Fact]
-    public void Releasing_the_shortcut_hides_the_circle_and_plays_the_end_tone()
+    public void Releasing_the_shortcut_turns_the_circle_over_to_transcribing()
     {
+        // The circle does not vanish, it changes colour — red to orange, exactly
+        // like the tray icon. The end of the recording is marked by the tone; the
+        // circle goes on saying the application is still busy.
         FeedbackPolicy policy = Ready();
         policy.Next(DictationState.Recording);
 
         FeedbackCue cue = policy.Next(DictationState.Transcribing);
 
-        Assert.False(cue.OverlayVisible);
+        Assert.Equal(DictationState.Transcribing, cue.Overlay);
         Assert.Equal(CueTone.End, cue.Tone);
     }
 
@@ -69,7 +72,7 @@ public class FeedbackPolicyTests
 
         FeedbackCue cue = policy.Next(DictationState.Idle);
 
-        Assert.False(cue.OverlayVisible);
+        Assert.Null(cue.Overlay);
         Assert.Equal(CueTone.End, cue.Tone);
     }
 
@@ -83,7 +86,7 @@ public class FeedbackPolicyTests
 
         FeedbackCue cue = policy.Next(DictationState.Recording);
 
-        Assert.True(cue.OverlayVisible);
+        Assert.Equal(DictationState.Recording, cue.Overlay);
         Assert.Equal(CueTone.None, cue.Tone);
     }
 
@@ -98,7 +101,7 @@ public class FeedbackPolicyTests
 
         FeedbackCue cue = policy.Next(DictationState.Idle);
 
-        Assert.False(cue.OverlayVisible);
+        Assert.Null(cue.Overlay);
         Assert.Equal(CueTone.None, cue.Tone);
     }
 
@@ -107,7 +110,7 @@ public class FeedbackPolicyTests
     {
         FeedbackCue cue = Ready().Next(DictationState.Failed);
 
-        Assert.False(cue.OverlayVisible);
+        Assert.Null(cue.Overlay);
         Assert.Equal(CueTone.None, cue.Tone);
     }
 
@@ -120,7 +123,7 @@ public class FeedbackPolicyTests
     {
         FeedbackCue cue = Ready(mode).Next(DictationState.Recording);
 
-        Assert.Equal(circle, cue.OverlayVisible);
+        Assert.Equal(circle ? DictationState.Recording : null, cue.Overlay);
         Assert.Equal(tone ? CueTone.Start : CueTone.None, cue.Tone);
     }
 
@@ -142,11 +145,12 @@ public class FeedbackPolicyTests
     [Fact]
     public void Turning_the_sound_off_keeps_the_circle_in_step()
     {
-        // Silent mode must still hide the circle at the end, not only show it
-        // at the start.
+        // Silent mode must still take the circle all the way back off the screen,
+        // not only put it there at the start.
         FeedbackPolicy policy = Ready(FeedbackMode.Visual);
         policy.Next(DictationState.Recording);
 
-        Assert.False(policy.Next(DictationState.Transcribing).OverlayVisible);
+        Assert.Equal(DictationState.Transcribing, policy.Next(DictationState.Transcribing).Overlay);
+        Assert.Null(policy.Next(DictationState.Idle).Overlay);
     }
 }

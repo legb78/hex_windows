@@ -84,9 +84,11 @@ The tray icon shows the current state:
 
 Hold `Ctrl` + `Windows`, speak, release. The text arrives at your cursor.
 
-A blue circle appears at the top of the screen for as long as the microphone
-is open, and a short tone marks each end of the recording — the tray icon is
-the wrong place to look while you are watching your text. Both are set by
+A circle appears at the top of the screen while the application is busy, in
+the same colours as the tray icon — red while recording, orange while
+transcribing, nothing at rest — and a short tone marks each end of the
+recording. The tray is the wrong place to look while you are watching your
+own text; this is the same signal, where the eye already is. Both are set by
 `feedback` below, and either can be turned off on its own.
 
 Right-clicking the icon opens the settings file and the log folder, and offers a
@@ -104,7 +106,7 @@ preventing startup.
 | `hotkey` | Keys to hold. `Fn` cannot be used: it is handled by the keyboard controller and emits no code Windows can see. |
 | `insertion` | `Paste` (clipboard, instant) or `Type` (simulated keystrokes, for apps that ignore pasting). |
 | `feedback` | What marks the start and end of a recording: `Both` (default), `Visual` (circle only), `Sound` (tones only), `None`. |
-| `feedbackColor` | Colour of the circle, `#RRGGBB`. |
+| `feedbackColor` | `auto` to follow the tray icon colours, or `#RRGGBB` to force one. |
 | `feedbackSize` | Diameter of the circle in pixels, 16 to 512. |
 | `feedbackOpacity` | Opacity of the circle, 20 to 255. |
 | `feedbackTopMargin` | Pixels between the circle and the top of the screen. |

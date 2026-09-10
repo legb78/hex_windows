@@ -17,10 +17,10 @@ internal sealed class DictationFeedback : IDisposable
     private readonly RecordingOverlay? _overlay;
     private readonly CueTones? _tones;
 
-    public DictationFeedback(FeedbackMode mode, SessionLog log)
+    public DictationFeedback(AppSettings settings, SessionLog log)
     {
-        _policy = new FeedbackPolicy(mode);
-        _overlay = _policy.ShowsCircle ? new RecordingOverlay() : null;
+        _policy = new FeedbackPolicy(settings.Feedback);
+        _overlay = _policy.ShowsCircle ? new RecordingOverlay(settings) : null;
         _tones = _policy.PlaysTone ? new CueTones(log) : null;
     }
 

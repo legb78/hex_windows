@@ -241,7 +241,7 @@ internal static class Program
             (DictationState.Idle, "retour au repos", 300),
         ];
 
-        using var feedback = new DictationFeedback(settings.Feedback, SessionLog.Create(settings.LogEnabled));
+        using var feedback = new DictationFeedback(settings, SessionLog.Create(settings.LogEnabled));
         using var timer = new System.Windows.Forms.Timer { Interval = 500 };
 
         feedback.Apply(DictationState.Idle);

@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using HexWin.Configuration;
 
 namespace HexWin.Feedback;
 
@@ -26,26 +27,26 @@ namespace HexWin.Feedback;
 [ExcludeFromCodeCoverage(Justification = "Win32 shell: needs an interactive session and a real desktop.")]
 internal sealed partial class RecordingOverlay : Form
 {
-    private const int Diameter = 64;
-
-    /// <summary>Gap below the top edge of the usable area.</summary>
-    private const int TopMargin = 40;
-
-    /// <summary>Slightly translucent: present without masking what is behind.</summary>
-    private const byte Alpha = 235;
-
+    private readonly int _diameter;
+    private readonly int _topMargin;
+    private readonly byte _opacity;
     private readonly Bitmap _circle;
+
     private bool _shown;
 
-    public RecordingOverlay()
+    public RecordingOverlay(AppSettings settings)
     {
+        _diameter = settings.FeedbackSize;
+        _topMargin = settings.FeedbackTopMargin;
+        _opacity = (byte)settings.FeedbackOpacity;
+
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         TopMost = true;
         StartPosition = FormStartPosition.Manual;
-        Size = new Size(Diameter, Diameter);
+        Size = new Size(_diameter, _diameter);
 
-        _circle = DrawCircle();
+        _circle = DrawCircle(_diameter, settings.FeedbackColor);
 
         // The window is brought into existence now rather than on the first
         // dictation. Showing it happens inside the keyboard hook callback,
@@ -100,9 +101,14 @@ internal sealed partial class RecordingOverlay : Form
     {
         Rectangle area = Screen.FromPoint(Cursor.Position).WorkingArea;
 
+        // The margin comes from the configuration, so it can be larger than
+        // the screen it is applied to. Clamped rather than trusted: a circle
+        // pushed off the display would look exactly like a broken feature.
+        int top = Math.Clamp(area.Top + _topMargin, area.Top, area.Bottom - _diameter);
+
         Location = new Point(
-            area.Left + ((area.Width - Diameter) / 2),
-            area.Top + TopMargin);
+            area.Left + ((area.Width - _diameter) / 2),
+            top);
     }
 
     private void Render()
@@ -116,7 +122,7 @@ internal sealed partial class RecordingOverlay : Form
         nint bitmap = _circle.GetHbitmap(Color.FromArgb(0));
         nint previous = SelectObject(memory, bitmap);
 
-        var size = new NativeSize { Width = Diameter, Height = Diameter };
+        var size = new NativeSize { Width = _diameter, Height = _diameter };
         var origin = new NativePoint { X = 0, Y = 0 };
         var position = new NativePoint { X = Location.X, Y = Location.Y };
 
@@ -124,7 +130,7 @@ internal sealed partial class RecordingOverlay : Form
         {
             BlendOp = AcSrcOver,
             BlendFlags = 0,
-            SourceConstantAlpha = Alpha,
+            SourceConstantAlpha = _opacity,
             AlphaFormat = AcSrcAlpha,
         };
 
@@ -141,21 +147,31 @@ internal sealed partial class RecordingOverlay : Form
         }
     }
 
-    private static Bitmap DrawCircle()
+    private static Bitmap DrawCircle(int diameter, string color)
     {
-        var bitmap = new Bitmap(Diameter, Diameter, PixelFormat.Format32bppArgb);
+        var bitmap = new Bitmap(diameter, diameter, PixelFormat.Format32bppArgb);
 
         using var graphics = Graphics.FromImage(bitmap);
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-        // The blue of the ready-state tray icon, so the two read as one
-        // application.
-        using var fill = new SolidBrush(Color.FromArgb(25, 113, 194));
-        graphics.FillEllipse(fill, 1, 1, Diameter - 3, Diameter - 3);
+        // Normalize has already rejected anything unparseable. The fallback is
+        // for a construction that bypassed it, and matters: without it an
+        // unreadable colour would draw a black disc rather than the default one.
+        if (!HexColor.TryParse(color, out int rgb))
+        {
+            HexColor.TryParse(AppSettings.DefaultFeedbackColor, out rgb);
+        }
 
-        // A white rim keeps the circle legible against a blue window behind it.
-        using var rim = new Pen(Color.White, 3f);
-        graphics.DrawEllipse(rim, 2.5f, 2.5f, Diameter - 6, Diameter - 6);
+        using var fill = new SolidBrush(Color.FromArgb(255, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF));
+        graphics.FillEllipse(fill, 1, 1, diameter - 3, diameter - 3);
+
+        // A white rim keeps the circle legible whatever colour it is given and
+        // whatever sits behind it. Scaled with the diameter, or a large circle
+        // would be outlined by a hairline.
+        float thickness = Math.Max(2f, diameter / 21f);
+
+        using var rim = new Pen(Color.White, thickness);
+        graphics.DrawEllipse(rim, thickness / 2f, thickness / 2f, diameter - 1 - thickness, diameter - 1 - thickness);
 
         return bitmap;
     }

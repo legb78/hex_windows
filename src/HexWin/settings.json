@@ -70,6 +70,22 @@
   // recording as well, so a muted microphone still reads as silent.
   "feedback": "Both",
 
+  // Appearance of the circle. Ignored when "feedback" leaves it out.
+  //
+  // feedbackColor     : #RRGGBB. The hash and the case are optional.
+  //                     "#1971C2" is the blue of the ready tray icon,
+  //                     "#E03131" its recording red.
+  // feedbackSize      : diameter in pixels, 16 to 512. Around 40 gives a
+  //                     discreet dot, 96 a circle hard to miss.
+  // feedbackOpacity   : 20 to 255. Never zero: a circle asked for and then
+  //                     rendered invisible reads as a broken feature.
+  // feedbackTopMargin : pixels between the circle and the top of the usable
+  //                     area, taskbar excluded.
+  "feedbackColor": "#1971C2",
+  "feedbackSize": 64,
+  "feedbackOpacity": 235,
+  "feedbackTopMargin": 40,
+
   // Logs each dictation: duration, captured level, characters produced.
   // Those three numbers together tell you whether the microphone heard you,
   // whether the engine understood you, and whether the text made it out.

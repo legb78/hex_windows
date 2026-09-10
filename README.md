@@ -104,6 +104,10 @@ preventing startup.
 | `hotkey` | Keys to hold. `Fn` cannot be used: it is handled by the keyboard controller and emits no code Windows can see. |
 | `insertion` | `Paste` (clipboard, instant) or `Type` (simulated keystrokes, for apps that ignore pasting). |
 | `feedback` | What marks the start and end of a recording: `Both` (default), `Visual` (circle only), `Sound` (tones only), `None`. |
+| `feedbackColor` | Colour of the circle, `#RRGGBB`. |
+| `feedbackSize` | Diameter of the circle in pixels, 16 to 512. |
+| `feedbackOpacity` | Opacity of the circle, 20 to 255. |
+| `feedbackTopMargin` | Pixels between the circle and the top of the screen. |
 | `provider` | `cpu`, the only one available: the published native libraries are built for CPU only. |
 | `threads` | Threads allocated to decoding. |
 | `minRecordingMilliseconds` | Below this, the keypress is treated as accidental. |

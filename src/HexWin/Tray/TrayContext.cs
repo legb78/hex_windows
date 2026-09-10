@@ -70,7 +70,7 @@ internal sealed class TrayContext : ApplicationContext
         _hook.Cancelled += (_, _) => OnDictationCancelled();
 
         _notifyIcon = BuildNotifyIcon();
-        _feedback = new DictationFeedback(settings.Feedback, _log);
+        _feedback = new DictationFeedback(settings, _log);
 
         _coordinator.StateChanged += (_, state) => ApplyState(state);
         ApplyState(_coordinator.State);

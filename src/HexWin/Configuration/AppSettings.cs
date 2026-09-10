@@ -97,6 +97,18 @@ public sealed class AppSettings
     /// <summary>Cue marking the start and the end of a recording.</summary>
     public FeedbackMode Feedback { get; set; } = FeedbackMode.Both;
 
+    /// <summary>Colour of the circle, written #RRGGBB.</summary>
+    public string FeedbackColor { get; set; } = DefaultFeedbackColor;
+
+    /// <summary>Diameter of the circle, in pixels.</summary>
+    public int FeedbackSize { get; set; } = DefaultFeedbackSize;
+
+    /// <summary>Opacity of the circle, 0 invisible to 255 solid.</summary>
+    public int FeedbackOpacity { get; set; } = DefaultFeedbackOpacity;
+
+    /// <summary>Gap between the circle and the top of the usable area, in pixels.</summary>
+    public int FeedbackTopMargin { get; set; } = DefaultFeedbackTopMargin;
+
     /// <summary>Logs the transcriptions and the engine actually loaded.</summary>
     public bool LogEnabled { get; set; } = true;
 
@@ -106,8 +118,20 @@ public sealed class AppSettings
     private const string DefaultProvider = "cpu";
     private const int DefaultThreads = 4;
     private const int DefaultUnloadAfterMinutes = 5;
+
+    /// <summary>The blue of the ready-state tray icon, so the two read as one.</summary>
+    public const string DefaultFeedbackColor = "#1971C2";
+
+    private const int DefaultFeedbackSize = 64;
+    private const int DefaultFeedbackOpacity = 235;
+    private const int DefaultFeedbackTopMargin = 40;
     private const int MaxUnloadAfterMinutes = 1_440;
     private const int MaxThreads = 32;
+
+    private const int MinFeedbackSize = 16;
+    private const int MaxFeedbackSize = 512;
+    private const int MinFeedbackOpacity = 20;
+    private const int MaxFeedbackTopMargin = 2_000;
 
     private static readonly string[] DefaultHotkey = ["Ctrl", "Win"];
 
@@ -241,6 +265,20 @@ public sealed class AppSettings
         {
             Feedback = FeedbackMode.Both;
         }
+
+        // Rewritten canonically so the file keeps one spelling of a colour
+        // whichever of the accepted ones was typed.
+        FeedbackColor = HexColor.TryParse(FeedbackColor, out int rgb)
+            ? HexColor.ToHex(rgb)
+            : DefaultFeedbackColor;
+
+        FeedbackSize = Math.Clamp(FeedbackSize, MinFeedbackSize, MaxFeedbackSize);
+        FeedbackTopMargin = Math.Clamp(FeedbackTopMargin, 0, MaxFeedbackTopMargin);
+
+        // The floor is not zero on purpose. A circle asked for and then
+        // rendered invisible reads as a broken feature; someone who wants no
+        // circle has "feedback" for that.
+        FeedbackOpacity = Math.Clamp(FeedbackOpacity, MinFeedbackOpacity, 255);
     }
 
     private static string NormalizeProvider(string? provider)

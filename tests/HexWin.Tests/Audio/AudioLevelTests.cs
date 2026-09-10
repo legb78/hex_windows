@@ -86,4 +86,34 @@ public class AudioLevelTests
         // above the threshold.
         Assert.False(AudioLevel.IsSilent(Samples((short)(short.MaxValue / 10))));
     }
+    [Fact]
+    public void The_opening_of_the_recording_can_be_left_out()
+    {
+        // The start cue of the feedback lands there, picked up off the speakers
+        // by the microphone that has just opened. Measured in, it would make a
+        // dead microphone look like a working one.
+        short[] values = new short[20];
+        Array.Fill(values, short.MaxValue, 0, 16);
+        Array.Fill(values, (short)100, 16, 4);
+
+        byte[] pcm = Samples(values);
+
+        Assert.Equal(1, AudioLevel.Peak(pcm));
+        Assert.Equal(100d / short.MaxValue, AudioLevel.Peak(pcm, TimeSpan.FromMilliseconds(1)), 6);
+    }
+
+    [Fact]
+    public void A_lead_longer_than_the_recording_leaves_nothing_to_measure()
+    {
+        // A press barely longer than the cue itself must not read out of bounds.
+        Assert.Equal(0, AudioLevel.Peak(Samples(short.MaxValue), TimeSpan.FromSeconds(1)));
+    }
+
+    [Fact]
+    public void A_zero_lead_measures_the_whole_recording()
+    {
+        byte[] pcm = Samples(0, short.MaxValue, 0);
+
+        Assert.Equal(AudioLevel.Peak(pcm), AudioLevel.Peak(pcm, TimeSpan.Zero));
+    }
 }

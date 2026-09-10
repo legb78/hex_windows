@@ -1,0 +1,37 @@
+using System.Diagnostics.CodeAnalysis;
+using HexWin.Configuration;
+using HexWin.Diagnostics;
+using HexWin.Tray;
+
+namespace HexWin.Feedback;
+
+/// <summary>
+/// Ties the policy to the two shells that carry it out.
+///
+/// Nothing is built for a channel the user turned off: no window, no waveform.
+/// </summary>
+[ExcludeFromCodeCoverage(Justification = "Assembles the Windows shells; the decision they follow is tested in FeedbackPolicy.")]
+internal sealed class DictationFeedback : IDisposable
+{
+    private readonly FeedbackPolicy _policy;
+    private readonly RecordingOverlay? _overlay;
+    private readonly CueTones? _tones;
+
+    public DictationFeedback(FeedbackMode mode, SessionLog log)
+    {
+        _policy = new FeedbackPolicy(mode);
+        _overlay = _policy.ShowsCircle ? new RecordingOverlay() : null;
+        _tones = _policy.PlaysTone ? new CueTones(log) : null;
+    }
+
+    /// <summary>Reflects the state just reached. Called on the interface thread.</summary>
+    public void Apply(DictationState state)
+    {
+        FeedbackCue cue = _policy.Next(state);
+
+        _overlay?.SetVisible(cue.OverlayVisible);
+        _tones?.Play(cue.Tone);
+    }
+
+    public void Dispose() => _overlay?.Dispose();
+}

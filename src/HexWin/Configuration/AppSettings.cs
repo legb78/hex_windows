@@ -17,6 +17,28 @@ public enum InsertionMode
 }
 
 /// <summary>
+/// What tells the user that a recording has started and stopped.
+///
+/// The tray icon already turns red, but nobody watches the tray while
+/// dictating: the eye is on the text being written. Hence a cue delivered
+/// where the user actually is.
+/// </summary>
+public enum FeedbackMode
+{
+    /// <summary>Nothing beyond the tray icon.</summary>
+    None,
+
+    /// <summary>A circle at the top of the screen, for the whole recording.</summary>
+    Visual,
+
+    /// <summary>A short tone when it starts, another when it stops.</summary>
+    Sound,
+
+    /// <summary>Both at once.</summary>
+    Both,
+}
+
+/// <summary>
 /// User configuration, read from settings.json next to the executable.
 ///
 /// All the logic in this class is pure: <see cref="Parse"/> and
@@ -71,6 +93,9 @@ public sealed class AppSettings
     public int UnloadAfterMinutes { get; set; } = DefaultUnloadAfterMinutes;
 
     public InsertionMode Insertion { get; set; } = InsertionMode.Paste;
+
+    /// <summary>Cue marking the start and the end of a recording.</summary>
+    public FeedbackMode Feedback { get; set; } = FeedbackMode.Both;
 
     /// <summary>Logs the transcriptions and the engine actually loaded.</summary>
     public bool LogEnabled { get; set; } = true;
@@ -210,6 +235,11 @@ public sealed class AppSettings
         if (!Enum.IsDefined(Insertion))
         {
             Insertion = InsertionMode.Paste;
+        }
+
+        if (!Enum.IsDefined(Feedback))
+        {
+            Feedback = FeedbackMode.Both;
         }
     }
 

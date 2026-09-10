@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using HexWin.Audio;
 using HexWin.Configuration;
 using HexWin.Diagnostics;
+using HexWin.Feedback;
 using HexWin.Input;
 using HexWin.Output;
 using HexWin.Transcription;
@@ -32,6 +33,7 @@ internal sealed class TrayContext : ApplicationContext
     private readonly DictationCoordinator _coordinator = new();
     private readonly TrayIcons _icons = new();
     private readonly NotifyIcon _notifyIcon;
+    private readonly DictationFeedback _feedback;
     private readonly SynchronizationContext _uiThread;
 
     private readonly AudioRecorder _recorder;
@@ -68,6 +70,8 @@ internal sealed class TrayContext : ApplicationContext
         _hook.Cancelled += (_, _) => OnDictationCancelled();
 
         _notifyIcon = BuildNotifyIcon();
+        _feedback = new DictationFeedback(settings.Feedback, _log);
+
         _coordinator.StateChanged += (_, state) => ApplyState(state);
         ApplyState(_coordinator.State);
 
@@ -89,6 +93,14 @@ internal sealed class TrayContext : ApplicationContext
     /// all day.
     /// </summary>
     private static readonly TimeSpan WatchdogInterval = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// Opening of a recording left out of the level measurement. Long enough
+    /// to cover the start cue, which the microphone picks up off the speakers,
+    /// and shorter than the minimum recording length, so no speech can fall
+    /// entirely inside it.
+    /// </summary>
+    private static readonly TimeSpan CueLead = TimeSpan.FromMilliseconds(250);
 
     private void WatchHook()
     {
@@ -220,7 +232,7 @@ internal sealed class TrayContext : ApplicationContext
             // diagnosed: there is no telling a microphone that hears nothing
             // from an engine that recognises nothing. Two very different
             // faults, with the same symptom.
-            double peak = AudioLevel.Peak(audio.Wav.AsSpan(WavFile.HeaderSize));
+            double peak = AudioLevel.Peak(audio.Wav.AsSpan(WavFile.HeaderSize), CueLead);
 
             _log.Write(
                 $"{audio.Duration.TotalSeconds:F1} s dictées, niveau {peak:P1}, "
@@ -229,7 +241,7 @@ internal sealed class TrayContext : ApplicationContext
 
             if (result.Text.Length == 0)
             {
-                _log.Write(AudioLevel.IsSilent(audio.Wav.AsSpan(WavFile.HeaderSize))
+                _log.Write(peak < AudioLevel.SilenceThreshold
                     ? "  → rien inséré : le micro n'a capté aucun son"
                     : "  → rien inséré : du son a été capté mais aucune parole reconnue");
             }
@@ -292,6 +304,7 @@ internal sealed class TrayContext : ApplicationContext
     {
         _notifyIcon.Icon = _icons[state];
         _notifyIcon.Text = Describe(state);
+        _feedback.Apply(state);
     }
 
     private string Describe(DictationState state) => state switch
@@ -342,6 +355,7 @@ internal sealed class TrayContext : ApplicationContext
             _hook.Dispose();
             _recorder.Dispose();
             _engines.Dispose();
+            _feedback.Dispose();
 
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();

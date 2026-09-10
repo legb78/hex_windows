@@ -19,6 +19,7 @@ public class AppSettingsTests
         Assert.Equal(["Ctrl", "Win"], settings.Hotkey);
         Assert.Equal("cpu", settings.Provider);
         Assert.Equal(InsertionMode.Paste, settings.Insertion);
+        Assert.Equal(FeedbackMode.Both, settings.Feedback);
         Assert.Equal(DefaultModel, settings.ModelPath);
         Assert.True(settings.LogEnabled);
     }
@@ -232,6 +233,7 @@ public class AppSettingsTests
             Provider = "cpu",
             Threads = 8,
             Insertion = InsertionMode.Type,
+            Feedback = FeedbackMode.Visual,
             LogEnabled = false,
         };
 
@@ -244,6 +246,7 @@ public class AppSettingsTests
         Assert.Equal(original.Provider, reread.Provider);
         Assert.Equal(original.Threads, reread.Threads);
         Assert.Equal(original.Insertion, reread.Insertion);
+        Assert.Equal(original.Feedback, reread.Feedback);
         Assert.False(reread.LogEnabled);
     }
 
@@ -254,6 +257,19 @@ public class AppSettingsTests
         string json = new AppSettings { Insertion = InsertionMode.Type }.ToJson();
 
         Assert.Contains("\"Type\"", json, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("\"Circle\"")]
+    [InlineData("\"\"")]
+    [InlineData("42")]
+    public void An_unknown_feedback_mode_falls_back_to_the_default(string value)
+    {
+        // Same rule as everywhere else here: a setting typed from memory
+        // must not cost the user their dictation.
+        AppSettings settings = AppSettings.Parse($$"""{"feedback": {{value}}}""");
+
+        Assert.Equal(FeedbackMode.Both, settings.Feedback);
     }
 
     [Fact]

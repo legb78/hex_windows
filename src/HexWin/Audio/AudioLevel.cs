@@ -40,6 +40,33 @@ public static class AudioLevel
         return (double)peak / short.MaxValue;
     }
 
+    /// <summary>
+    /// Same measurement, ignoring the opening <paramref name="lead"/> of the
+    /// recording.
+    ///
+    /// <para>The start cue of the feedback is emitted as the microphone opens.
+    /// On speakers rather than headphones it is captured along with everything
+    /// else, and left in it lifts a completely silent recording above
+    /// <see cref="SilenceThreshold"/> — turning "the microphone heard nothing"
+    /// into "sound was captured but no speech recognised", which is the one
+    /// distinction this measurement exists to make.</para>
+    ///
+    /// <para>Nothing is lost by skipping that opening. Nobody has begun
+    /// speaking that early, and an utterance short enough to fit entirely
+    /// inside it is discarded beforehand by
+    /// <see cref="RecordingGuards"/> as an accidental press.</para>
+    /// </summary>
+    public static double Peak(ReadOnlySpan<byte> pcm, TimeSpan lead)
+    {
+        int skip = (int)Math.Min(RecordingFormat.BytesFor(lead), pcm.Length);
+
+        // Clamping can land mid-sample, which would pair the high byte of one
+        // sample with the low byte of the next.
+        skip -= skip % RecordingFormat.BytesPerSample;
+
+        return Peak(pcm[skip..]);
+    }
+
     /// <summary>True when the recording holds nothing audible.</summary>
     public static bool IsSilent(ReadOnlySpan<byte> pcm) => Peak(pcm) < SilenceThreshold;
 }

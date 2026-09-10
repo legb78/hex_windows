@@ -51,16 +51,17 @@ public static class AudioLevel
     /// into "sound was captured but no speech recognised", which is the one
     /// distinction this measurement exists to make.</para>
     ///
-    /// <para>Nothing is lost by skipping that opening. Nobody has begun
-    /// speaking that early, and an utterance short enough to fit entirely
-    /// inside it is discarded beforehand by
-    /// <see cref="RecordingGuards"/> as an accidental press.</para>
+    /// <para><b>Never more than half the recording</b>, however long the lead.
+    /// A press barely above the minimum is only a little longer than the cue
+    /// itself; skipping the lead whole would leave nothing to measure and
+    /// report a peak of zero — announcing a dead microphone on the strength of
+    /// no samples at all, which is worse than the contamination this avoids.</para>
     /// </summary>
     public static double Peak(ReadOnlySpan<byte> pcm, TimeSpan lead)
     {
-        int skip = (int)Math.Min(RecordingFormat.BytesFor(lead), pcm.Length);
+        int skip = (int)Math.Min(RecordingFormat.BytesFor(lead), pcm.Length / 2);
 
-        // Clamping can land mid-sample, which would pair the high byte of one
+        // Halving can land mid-sample, which would pair the high byte of one
         // sample with the low byte of the next.
         skip -= skip % RecordingFormat.BytesPerSample;
 

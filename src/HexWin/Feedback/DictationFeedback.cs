@@ -24,6 +24,12 @@ internal sealed class DictationFeedback : IDisposable
         _tones = _policy.PlaysTone ? new CueTones(log) : null;
     }
 
+    /// <summary>
+    /// True when a tone is actually emitted, and so when the microphone has a
+    /// cue of its own to capture.
+    /// </summary>
+    public bool PlaysTone => _policy.PlaysTone;
+
     /// <summary>Reflects the state just reached. Called on the interface thread.</summary>
     public void Apply(DictationState state)
     {

@@ -95,10 +95,10 @@ internal sealed class TrayContext : ApplicationContext
     private static readonly TimeSpan WatchdogInterval = TimeSpan.FromMinutes(2);
 
     /// <summary>
-    /// Opening of a recording left out of the level measurement. Long enough
-    /// to cover the start cue, which the microphone picks up off the speakers,
-    /// and shorter than the minimum recording length, so no speech can fall
-    /// entirely inside it.
+    /// Opening of a recording left out of the level measurement, long enough to
+    /// cover the start cue that the microphone picks up off the speakers. Applied
+    /// only when the tone is on, and capped by AudioLevel at half the recording,
+    /// so a brief press keeps a level worth reading.
     /// </summary>
     private static readonly TimeSpan CueLead = TimeSpan.FromMilliseconds(250);
 
@@ -232,7 +232,11 @@ internal sealed class TrayContext : ApplicationContext
             // diagnosed: there is no telling a microphone that hears nothing
             // from an engine that recognises nothing. Two very different
             // faults, with the same symptom.
-            double peak = AudioLevel.Peak(audio.Wav.AsSpan(WavFile.HeaderSize), CueLead);
+            // Only worth skipping when there is a cue to skip: with the tone
+            // off, the opening of the recording is as trustworthy as the rest.
+            double peak = AudioLevel.Peak(
+                audio.Wav.AsSpan(WavFile.HeaderSize),
+                _feedback.PlaysTone ? CueLead : TimeSpan.Zero);
 
             _log.Write(
                 $"{audio.Duration.TotalSeconds:F1} s dictées, niveau {peak:P1}, "

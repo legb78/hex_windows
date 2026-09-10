@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using HexWin.Audio;
 using HexWin.Configuration;
 using HexWin.Diagnostics;
+using HexWin.Feedback;
 using HexWin.Input;
 using HexWin.Interop;
 using HexWin.Output;
@@ -47,6 +48,12 @@ internal static class Program
         {
             ConsoleBridge.Attach();
             return WatchHotkey();
+        }
+
+        if (HasFlag(args, "--test-feedback"))
+        {
+            ConsoleBridge.Attach();
+            return TestFeedback();
         }
 
         string? textToInject = ReadOption(args, "--inject");
@@ -192,6 +199,78 @@ internal static class Program
         Thread.Sleep(TimeSpan.FromSeconds(1));
 
         Console.WriteLine("Insertion demandée.");
+        return 0;
+    }
+
+    /// <summary>
+    /// Feedback diagnostic mode: plays a whole dictation's worth of cues — the
+    /// circle, then the two tones — with no model, no microphone and no
+    /// shortcut.
+    ///
+    /// Judging where the circle sits and how loud the tones are takes two
+    /// seconds this way, against a full dictation each time otherwise. It is
+    /// also the only way to see the cue at all on a machine where the model has
+    /// not been downloaded yet.
+    /// </summary>
+    private static int TestFeedback()
+    {
+        AppSettings settings = AppSettings.Load(
+            Path.Combine(AppContext.BaseDirectory, AppSettings.FileName));
+
+        Console.WriteLine($"Retour : {settings.Feedback}");
+        Console.WriteLine();
+
+        if (settings.Feedback == FeedbackMode.None)
+        {
+            Console.WriteLine("Aucun retour n'est configuré.");
+            Console.WriteLine("Réglez \"feedback\" sur Visual, Sound ou Both dans settings.json.");
+            return 0;
+        }
+
+        ApplicationConfiguration.Initialize();
+
+        // Same reason as in the tray application: the Windows Forms context is
+        // only installed once the message loop runs, so too late for the
+        // overlay window created just below.
+        SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
+
+        (DictationState State, string Label, int HoldMs)[] script =
+        [
+            (DictationState.Recording, "début de l'enregistrement", 3_000),
+            (DictationState.Transcribing, "fin de l'enregistrement", 800),
+            (DictationState.Idle, "retour au repos", 300),
+        ];
+
+        using var feedback = new DictationFeedback(settings, SessionLog.Create(settings.LogEnabled));
+        using var timer = new System.Windows.Forms.Timer { Interval = 500 };
+
+        feedback.Apply(DictationState.Idle);
+
+        int step = 0;
+
+        timer.Tick += (_, _) =>
+        {
+            if (step == script.Length)
+            {
+                Application.ExitThread();
+                return;
+            }
+
+            (DictationState state, string label, int hold) = script[step++];
+
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}]  {label}");
+            feedback.Apply(state);
+            timer.Interval = hold;
+        };
+
+        timer.Start();
+
+        // A Windows Forms timer is only fed by a message loop, exactly like the
+        // keyboard hook of the mode above.
+        Application.Run();
+
+        Console.WriteLine();
+        Console.WriteLine("Terminé.");
         return 0;
     }
 
@@ -411,6 +490,9 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine("  HexWin.exe --watch-hotkey");
         Console.WriteLine("      affiche les déclenchements du raccourci, sans transcrire");
+        Console.WriteLine();
+        Console.WriteLine("  HexWin.exe --test-feedback");
+        Console.WriteLine("      joue le retour début/fin de dictée, sans modèle ni micro");
         Console.WriteLine();
         Console.WriteLine("  HexWin.exe --record sortie.wav [--seconds 5]");
         Console.WriteLine("      enregistre le micro, écrit le WAV et mesure le niveau capté");

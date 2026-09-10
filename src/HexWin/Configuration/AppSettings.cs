@@ -17,6 +17,28 @@ public enum InsertionMode
 }
 
 /// <summary>
+/// What tells the user that a recording has started and stopped.
+///
+/// The tray icon already turns red, but nobody watches the tray while
+/// dictating: the eye is on the text being written. Hence a cue delivered
+/// where the user actually is.
+/// </summary>
+public enum FeedbackMode
+{
+    /// <summary>Nothing beyond the tray icon.</summary>
+    None,
+
+    /// <summary>A circle at the top of the screen, for the whole recording.</summary>
+    Visual,
+
+    /// <summary>A short tone when it starts, another when it stops.</summary>
+    Sound,
+
+    /// <summary>Both at once.</summary>
+    Both,
+}
+
+/// <summary>
 /// User configuration, read from settings.json next to the executable.
 ///
 /// All the logic in this class is pure: <see cref="Parse"/> and
@@ -72,6 +94,24 @@ public sealed class AppSettings
 
     public InsertionMode Insertion { get; set; } = InsertionMode.Paste;
 
+    /// <summary>Cue marking the start and the end of a recording.</summary>
+    public FeedbackMode Feedback { get; set; } = FeedbackMode.Both;
+
+    /// <summary>
+    /// Colour of the circle: <c>auto</c> to follow the state colours of the
+    /// tray icon, or #RRGGBB to force one colour whatever the state.
+    /// </summary>
+    public string FeedbackColor { get; set; } = DefaultFeedbackColor;
+
+    /// <summary>Diameter of the circle, in pixels.</summary>
+    public int FeedbackSize { get; set; } = DefaultFeedbackSize;
+
+    /// <summary>Opacity of the circle, 0 invisible to 255 solid.</summary>
+    public int FeedbackOpacity { get; set; } = DefaultFeedbackOpacity;
+
+    /// <summary>Gap between the circle and the top of the usable area, in pixels.</summary>
+    public int FeedbackTopMargin { get; set; } = DefaultFeedbackTopMargin;
+
     /// <summary>Logs the transcriptions and the engine actually loaded.</summary>
     public bool LogEnabled { get; set; } = true;
 
@@ -81,8 +121,24 @@ public sealed class AppSettings
     private const string DefaultProvider = "cpu";
     private const int DefaultThreads = 4;
     private const int DefaultUnloadAfterMinutes = 5;
+
+    /// <summary>
+    /// Follow the tray icon rather than impose a colour: red while recording,
+    /// orange while transcribing. A circle that stayed one colour would say
+    /// less than the icon it sits next to.
+    /// </summary>
+    private const string DefaultFeedbackColor = "auto";
+
+    private const int DefaultFeedbackSize = 64;
+    private const int DefaultFeedbackOpacity = 235;
+    private const int DefaultFeedbackTopMargin = 40;
     private const int MaxUnloadAfterMinutes = 1_440;
     private const int MaxThreads = 32;
+
+    private const int MinFeedbackSize = 16;
+    private const int MaxFeedbackSize = 512;
+    private const int MinFeedbackOpacity = 20;
+    private const int MaxFeedbackTopMargin = 2_000;
 
     private static readonly string[] DefaultHotkey = ["Ctrl", "Win"];
 
@@ -211,6 +267,27 @@ public sealed class AppSettings
         {
             Insertion = InsertionMode.Paste;
         }
+
+        if (!Enum.IsDefined(Feedback))
+        {
+            Feedback = FeedbackMode.Both;
+        }
+
+        // A colour is rewritten canonically so the file keeps one spelling of
+        // it; anything else, "auto" included, means the state colours. A typo
+        // therefore lands on the palette rather than on some colour the user
+        // never asked for.
+        FeedbackColor = HexColor.TryParse(FeedbackColor, out int rgb)
+            ? HexColor.ToHex(rgb)
+            : DefaultFeedbackColor;
+
+        FeedbackSize = Math.Clamp(FeedbackSize, MinFeedbackSize, MaxFeedbackSize);
+        FeedbackTopMargin = Math.Clamp(FeedbackTopMargin, 0, MaxFeedbackTopMargin);
+
+        // The floor is not zero on purpose. A circle asked for and then
+        // rendered invisible reads as a broken feature; someone who wants no
+        // circle has "feedback" for that.
+        FeedbackOpacity = Math.Clamp(FeedbackOpacity, MinFeedbackOpacity, 255);
     }
 
     private static string NormalizeProvider(string? provider)

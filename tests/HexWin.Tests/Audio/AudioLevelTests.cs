@@ -86,4 +86,46 @@ public class AudioLevelTests
         // above the threshold.
         Assert.False(AudioLevel.IsSilent(Samples((short)(short.MaxValue / 10))));
     }
+    [Fact]
+    public void The_opening_of_the_recording_can_be_left_out()
+    {
+        // The start cue of the feedback lands there, picked up off the speakers
+        // by the microphone that has just opened. Measured in, it would make a
+        // dead microphone look like a working one.
+        short[] values = new short[40];
+        Array.Fill(values, short.MaxValue, 0, 16);
+        Array.Fill(values, (short)100, 16, 24);
+
+        byte[] pcm = Samples(values);
+
+        Assert.Equal(1, AudioLevel.Peak(pcm));
+        Assert.Equal(100d / short.MaxValue, AudioLevel.Peak(pcm, TimeSpan.FromMilliseconds(1)), 6);
+    }
+
+    [Fact]
+    public void A_lead_longer_than_the_recording_still_measures_half_of_it()
+    {
+        // The regression this guards against. A press barely above the minimum
+        // had its whole content skipped, reported a peak of zero, and the log
+        // then announced a microphone that had heard nothing — on the strength
+        // of no samples at all. Seen in a real log: "0.2 s dictées, niveau 0.0%".
+        byte[] pcm = Samples(0, 0, 5_000, 9_000);
+
+        Assert.Equal(9_000d / short.MaxValue, AudioLevel.Peak(pcm, TimeSpan.FromSeconds(10)), 6);
+    }
+
+    [Fact]
+    public void A_single_sample_survives_any_lead()
+    {
+        // Half of one sample is none, and the span must not be cut mid-sample.
+        Assert.Equal(1, AudioLevel.Peak(Samples(short.MaxValue), TimeSpan.FromSeconds(1)));
+    }
+
+    [Fact]
+    public void A_zero_lead_measures_the_whole_recording()
+    {
+        byte[] pcm = Samples(0, short.MaxValue, 0);
+
+        Assert.Equal(AudioLevel.Peak(pcm), AudioLevel.Peak(pcm, TimeSpan.Zero));
+    }
 }

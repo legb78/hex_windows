@@ -84,6 +84,13 @@ The tray icon shows the current state:
 
 Hold `Ctrl` + `Windows`, speak, release. The text arrives at your cursor.
 
+A circle appears at the top of the screen while the application is busy, in
+the same colours as the tray icon — red while recording, orange while
+transcribing, nothing at rest — and a short tone marks each end of the
+recording. The tray is the wrong place to look while you are watching your
+own text; this is the same signal, where the eye already is. Both are set by
+`feedback` below, and either can be turned off on its own.
+
 Right-clicking the icon opens the settings file and the log folder, and offers a
 **start with Windows** toggle. Worth enabling: the app does not come back on its
 own after a reboot otherwise.
@@ -98,6 +105,11 @@ preventing startup.
 |---------|--------------|
 | `hotkey` | Keys to hold. `Fn` cannot be used: it is handled by the keyboard controller and emits no code Windows can see. |
 | `insertion` | `Paste` (clipboard, instant) or `Type` (simulated keystrokes, for apps that ignore pasting). |
+| `feedback` | What marks the start and end of a recording: `Both` (default), `Visual` (circle only), `Sound` (tones only), `None`. |
+| `feedbackColor` | `auto` to follow the tray icon colours, or `#RRGGBB` to force one. |
+| `feedbackSize` | Diameter of the circle in pixels, 16 to 512. |
+| `feedbackOpacity` | Opacity of the circle, 20 to 255. |
+| `feedbackTopMargin` | Pixels between the circle and the top of the screen. |
 | `provider` | `cpu`, the only one available: the published native libraries are built for CPU only. |
 | `threads` | Threads allocated to decoding. |
 | `minRecordingMilliseconds` | Below this, the keypress is treated as accidental. |
@@ -106,8 +118,9 @@ preventing startup.
 
 ## When something goes wrong
 
-Four diagnostic modes. Run them in this order — each isolates one layer, which
-is how you find out where the fault actually is instead of guessing.
+Five diagnostic modes. Run the first four in this order — each isolates one
+layer, which is how you find out where the fault actually is instead of
+guessing. The fifth stands alone: it needs neither model nor microphone.
 
 ```powershell
 # 1. Is the microphone picking anything up?
@@ -121,6 +134,9 @@ is how you find out where the fault actually is instead of guessing.
 
 # 4. Does insertion reach the target window?
 .\HexWin.exe --inject "some text"
+
+# 5. Do the start and end cues show and sound?
+.\HexWin.exe --test-feedback
 ```
 
 Start with the first. A muted microphone, or one blocked by the privacy
@@ -164,12 +180,14 @@ The architecture deliberately separates two layers, for testability (see the
 diagram above; editable source in [docs/architecture.excalidraw](docs/architecture.excalidraw)):
 
 - **The Windows shells** (`KeyboardHook`, `AudioRecorder`, `ParakeetEngine`,
-  `TextInjector`) wire up system APIs and decide nothing. They cannot be tested
+  `TextInjector`, `RecordingOverlay`, `CueTones`) wire up system APIs and decide
+  nothing. They cannot be tested
   automatically — a CI runner has no microphone and no interactive session, and
   Windows marks program-generated keystrokes as injected, which the hook ignores
   on purpose. They are verified by hand.
 - **The pure logic** (`ChordDetector`, `RecordingGuards`, `TranscriptCleaner`,
-  `AppSettings`, `DictationCoordinator`, `IdlePolicy`) holds every decision and
+  `AppSettings`, `DictationCoordinator`, `IdlePolicy`, `FeedbackPolicy`) holds
+  every decision and
   is tested without Windows. This is where the expensive bugs live: keyboard
   auto-repeat, keys released out of order, a key left stuck after a session
   lock, a second dictation triggered while one is still transcribing.

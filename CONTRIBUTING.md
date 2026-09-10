@@ -18,13 +18,15 @@ dotnet test
 The architecture separates two layers, for testability.
 
 **The Windows shells** — `KeyboardHook`, `AudioRecorder`, `ParakeetEngine`,
-`TextInjector` — wire up system APIs and decide nothing. They cannot be tested
+`TextInjector`, `RecordingOverlay`, `CueTones` — wire up system APIs and decide
+nothing. They cannot be tested
 automatically: a CI runner has no microphone and no interactive session, and
 Windows marks program-generated keystrokes as injected, which the hook ignores
 on purpose.
 
 **The pure logic** — `ChordDetector`, `RecordingGuards`, `TranscriptCleaner`,
-`AppSettings`, `DictationCoordinator`, `IdlePolicy` — holds every decision and
+`AppSettings`, `DictationCoordinator`, `IdlePolicy`, `FeedbackPolicy` — holds
+every decision and
 is tested without Windows.
 
 > **If you add a decision, it belongs in the pure layer.** That is where the
@@ -61,6 +63,7 @@ manual check. The diagnostic modes exist for that:
 .\HexWin.exe --transcribe test.wav   # does the engine transcribe?
 .\HexWin.exe --watch-hotkey          # does the hotkey fire?
 .\HexWin.exe --inject "some text"    # does insertion land?
+.\HexWin.exe --test-feedback         # do the start and end cues fire?
 ```
 
 Describe in the pull request what you tried and what you observed.

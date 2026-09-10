@@ -19,6 +19,9 @@ public class AppSettingsTests
         Assert.Equal(["Ctrl", "Win"], settings.Hotkey);
         Assert.Equal("cpu", settings.Provider);
         Assert.Equal(InsertionMode.Paste, settings.Insertion);
+        Assert.Equal(FeedbackMode.Both, settings.Feedback);
+        Assert.Equal("auto", settings.FeedbackColor);
+        Assert.Equal(64, settings.FeedbackSize);
         Assert.Equal(DefaultModel, settings.ModelPath);
         Assert.True(settings.LogEnabled);
     }
@@ -232,6 +235,11 @@ public class AppSettingsTests
             Provider = "cpu",
             Threads = 8,
             Insertion = InsertionMode.Type,
+            Feedback = FeedbackMode.Visual,
+            FeedbackColor = "#E03131",
+            FeedbackSize = 96,
+            FeedbackOpacity = 200,
+            FeedbackTopMargin = 120,
             LogEnabled = false,
         };
 
@@ -244,6 +252,11 @@ public class AppSettingsTests
         Assert.Equal(original.Provider, reread.Provider);
         Assert.Equal(original.Threads, reread.Threads);
         Assert.Equal(original.Insertion, reread.Insertion);
+        Assert.Equal(original.Feedback, reread.Feedback);
+        Assert.Equal(original.FeedbackColor, reread.FeedbackColor);
+        Assert.Equal(original.FeedbackSize, reread.FeedbackSize);
+        Assert.Equal(original.FeedbackOpacity, reread.FeedbackOpacity);
+        Assert.Equal(original.FeedbackTopMargin, reread.FeedbackTopMargin);
         Assert.False(reread.LogEnabled);
     }
 
@@ -254,6 +267,19 @@ public class AppSettingsTests
         string json = new AppSettings { Insertion = InsertionMode.Type }.ToJson();
 
         Assert.Contains("\"Type\"", json, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("\"Circle\"")]
+    [InlineData("\"\"")]
+    [InlineData("42")]
+    public void An_unknown_feedback_mode_falls_back_to_the_default(string value)
+    {
+        // Same rule as everywhere else here: a setting typed from memory
+        // must not cost the user their dictation.
+        AppSettings settings = AppSettings.Parse($$"""{"feedback": {{value}}}""");
+
+        Assert.Equal(FeedbackMode.Both, settings.Feedback);
     }
 
     [Fact]
@@ -283,5 +309,68 @@ public class AppSettingsTests
         {
             File.Delete(path);
         }
+    }
+    [Theory]
+    [InlineData("\"rouge\"")]
+    [InlineData("\"auto\"")]
+    [InlineData("\"#12345\"")]
+    [InlineData("\"\"")]
+    [InlineData("null")]
+    public void An_unreadable_colour_falls_back_to_the_state_colours(string value)
+    {
+        // Including the word "auto", which is how one asks for them on purpose.
+        AppSettings settings = AppSettings.Parse($$"""{"feedbackColor": {{value}}}""");
+
+        Assert.Equal("auto", settings.FeedbackColor);
+    }
+
+    [Theory]
+    [InlineData("\"#1971c2\"")]
+    [InlineData("\"1971C2\"")]
+    [InlineData("\"  #1971C2  \"")]
+    public void A_colour_is_rewritten_in_one_spelling(string value)
+    {
+        // So the file settles on a single form whichever of the accepted ones
+        // was typed, instead of keeping four ways of saying the same blue.
+        AppSettings settings = AppSettings.Parse($$"""{"feedbackColor": {{value}}}""");
+
+        Assert.Equal("#1971C2", settings.FeedbackColor);
+    }
+
+    [Theory]
+    [InlineData(0, 16)]
+    [InlineData(-40, 16)]
+    [InlineData(9999, 512)]
+    [InlineData(96, 96)]
+    public void The_circle_keeps_a_usable_size(int asked, int expected)
+    {
+        AppSettings settings = AppSettings.Parse($$"""{"feedbackSize": {{asked}}}""");
+
+        Assert.Equal(expected, settings.FeedbackSize);
+    }
+
+    [Theory]
+    [InlineData(0, 20)]
+    [InlineData(-1, 20)]
+    [InlineData(999, 255)]
+    [InlineData(150, 150)]
+    public void The_circle_never_becomes_invisible(int asked, int expected)
+    {
+        // Asking for the circle and getting nothing reads as a broken feature.
+        // Someone who wants no circle sets "feedback" instead.
+        AppSettings settings = AppSettings.Parse($$"""{"feedbackOpacity": {{asked}}}""");
+
+        Assert.Equal(expected, settings.FeedbackOpacity);
+    }
+
+    [Theory]
+    [InlineData(-10, 0)]
+    [InlineData(999999, 2000)]
+    [InlineData(120, 120)]
+    public void The_top_margin_stays_within_reach(int asked, int expected)
+    {
+        AppSettings settings = AppSettings.Parse($$"""{"feedbackTopMargin": {{asked}}}""");
+
+        Assert.Equal(expected, settings.FeedbackTopMargin);
     }
 }

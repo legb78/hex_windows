@@ -156,8 +156,35 @@ internal sealed class TrayContext : ApplicationContext
 
     private void OnDictationStarted()
     {
+        // Checked before opening anything, and safe to check separately from the
+        // transition below: everything here runs on the message-loop thread, so
+        // no second dictation can slip in between the two.
+        if (_coordinator.State != DictationState.Idle)
+        {
+            return;
+        }
+
+        try
+        {
+            // The microphone opens before the state changes, and so before the
+            // cue. Opening a capture stream makes Windows reconfigure its audio
+            // engine, which silences playback for about 200 ms: a tone started
+            // first is cut clean in half by that silence and heard as two beeps.
+            // Measured on the speaker output, cue first against microphone first:
+            // "50 ms, 200 ms of silence, 25 ms" every time against a whole 70 ms
+            // every time.
+            _recorder.Start();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _log.Write($"micro indisponible : {ex.Message}");
+            ShowBalloon("Micro indisponible", ex.Message);
+            return;
+        }
+
         if (!_coordinator.TryStartRecording())
         {
+            _recorder.Stop();
             return;
         }
 
@@ -166,18 +193,6 @@ internal sealed class TrayContext : ApplicationContext
         // seconds of loading are almost entirely hidden.
         _engines.SetBusy(true);
         _engines.BeginLoad();
-
-        try
-        {
-            _recorder.Start();
-        }
-        catch (InvalidOperationException ex)
-        {
-            _log.Write($"micro indisponible : {ex.Message}");
-            _coordinator.Cancel();
-            _engines.SetBusy(false);
-            ShowBalloon("Micro indisponible", ex.Message);
-        }
     }
 
     private void OnDictationEnded()

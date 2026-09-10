@@ -66,11 +66,11 @@ internal sealed class CueTones
 
         try
         {
-            // Default buffering puts about 300 ms between Play and the first
-            // sound. On a cue meant to mark the exact moment the microphone
-            // opens, that lag is the whole difference between useful and
-            // misleading.
-            output = new WaveOutEvent { DesiredLatency = 80, NumberOfBuffers = 2 };
+            // Default buffering, deliberately. A shorter one was tried while
+            // chasing a tone that broke in two; the cause turned out to be the
+            // microphone opening (see TrayContext.OnDictationStarted), and the
+            // buffer size had nothing to do with it.
+            output = new WaveOutEvent();
 
             // Released by the event rather than here: Play returns at once,
             // while the buffer is still being consumed.

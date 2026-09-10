@@ -11,9 +11,9 @@ namespace HexWin.Tray;
 /// coloured dots, and embedding them as resources would add nothing but one
 /// more binary file to version.
 ///
-/// The state has to be readable at a glance, at sixteen pixels across and with
-/// no reliable background — the tray can be light or dark. Hence plainly
-/// distinct hues rather than shades.
+/// The colours come from <see cref="StatePalette"/>, shared with the on-screen
+/// circle: the two show the same signal in two places, and must never disagree
+/// about what a state looks like.
 /// </summary>
 [ExcludeFromCodeCoverage(Justification = "GDI+ shell: produces graphical resources of the system.")]
 internal sealed partial class TrayIcons : IDisposable
@@ -24,11 +24,12 @@ internal sealed partial class TrayIcons : IDisposable
 
     public TrayIcons()
     {
-        _icons[DictationState.Loading] = Build(Color.FromArgb(134, 142, 150));      // grey
-        _icons[DictationState.Idle] = Build(Color.FromArgb(25, 113, 194));          // blue
-        _icons[DictationState.Recording] = Build(Color.FromArgb(224, 49, 49));      // red
-        _icons[DictationState.Transcribing] = Build(Color.FromArgb(232, 89, 12));   // orange
-        _icons[DictationState.Failed] = Build(Color.FromArgb(64, 64, 64), cross: true);
+        foreach (DictationState state in Enum.GetValues<DictationState>())
+        {
+            _icons[state] = Build(
+                StatePalette.For(state),
+                cross: state == DictationState.Failed);
+        }
     }
 
     public Icon this[DictationState state] => _icons[state];

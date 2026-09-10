@@ -54,6 +54,41 @@
   // "Type"  : simulated keystrokes, for applications that ignore pasting.
   "insertion": "Paste",
 
+  // What tells you that the recording started and stopped. The tray icon
+  // turns red already, but nobody watches the tray while dictating.
+  //
+  // "None"   : nothing beyond the tray icon.
+  // "Visual" : a circle at the top of the screen while the application is
+  //            busy, in the colour of the tray icon: red while recording,
+  //            orange while transcribing, nothing at rest. Click-through,
+  //            and it never takes the focus.
+  // "Sound"  : a short tone on start, a lower one on stop.
+  // "Both"   : the two together.
+  //
+  // On speakers rather than headphones, the start tone is picked up by the
+  // microphone that has just opened. Measured against the same recording
+  // with and without it: the transcription is identical, the engine emits
+  // nothing for a pure tone. The level measurement skips the opening of the
+  // recording as well, so a muted microphone still reads as silent.
+  "feedback": "Both",
+
+  // Appearance of the circle. Ignored when "feedback" leaves it out.
+  //
+  // feedbackColor     : "auto" follows the tray icon — red while recording,
+  //                     orange while transcribing. A #RRGGBB value forces one
+  //                     colour whatever the state; the hash and the case are
+  //                     optional, and anything unreadable falls back to auto.
+  // feedbackSize      : diameter in pixels, 16 to 512. Around 40 gives a
+  //                     discreet dot, 96 a circle hard to miss.
+  // feedbackOpacity   : 20 to 255. Never zero: a circle asked for and then
+  //                     rendered invisible reads as a broken feature.
+  // feedbackTopMargin : pixels between the circle and the top of the usable
+  //                     area, taskbar excluded.
+  "feedbackColor": "auto",
+  "feedbackSize": 64,
+  "feedbackOpacity": 235,
+  "feedbackTopMargin": 40,
+
   // Logs each dictation: duration, captured level, characters produced.
   // Those three numbers together tell you whether the microphone heard you,
   // whether the engine understood you, and whether the text made it out.

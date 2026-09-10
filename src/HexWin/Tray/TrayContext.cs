@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using HexWin.Audio;
 using HexWin.Configuration;
 using HexWin.Diagnostics;
+using HexWin.Feedback;
 using HexWin.Input;
 using HexWin.Output;
 using HexWin.Transcription;
@@ -32,6 +33,7 @@ internal sealed class TrayContext : ApplicationContext
     private readonly DictationCoordinator _coordinator = new();
     private readonly TrayIcons _icons = new();
     private readonly NotifyIcon _notifyIcon;
+    private readonly DictationFeedback _feedback;
     private readonly SynchronizationContext _uiThread;
 
     private readonly AudioRecorder _recorder;
@@ -68,6 +70,8 @@ internal sealed class TrayContext : ApplicationContext
         _hook.Cancelled += (_, _) => OnDictationCancelled();
 
         _notifyIcon = BuildNotifyIcon();
+        _feedback = new DictationFeedback(settings, _log);
+
         _coordinator.StateChanged += (_, state) => ApplyState(state);
         ApplyState(_coordinator.State);
 
@@ -89,6 +93,14 @@ internal sealed class TrayContext : ApplicationContext
     /// all day.
     /// </summary>
     private static readonly TimeSpan WatchdogInterval = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// Opening of a recording left out of the level measurement, long enough to
+    /// cover the start cue that the microphone picks up off the speakers. Applied
+    /// only when the tone is on, and capped by AudioLevel at half the recording,
+    /// so a brief press keeps a level worth reading.
+    /// </summary>
+    private static readonly TimeSpan CueLead = TimeSpan.FromMilliseconds(250);
 
     private void WatchHook()
     {
@@ -144,8 +156,35 @@ internal sealed class TrayContext : ApplicationContext
 
     private void OnDictationStarted()
     {
+        // Checked before opening anything, and safe to check separately from the
+        // transition below: everything here runs on the message-loop thread, so
+        // no second dictation can slip in between the two.
+        if (_coordinator.State != DictationState.Idle)
+        {
+            return;
+        }
+
+        try
+        {
+            // The microphone opens before the state changes, and so before the
+            // cue. Opening a capture stream makes Windows reconfigure its audio
+            // engine, which silences playback for about 200 ms: a tone started
+            // first is cut clean in half by that silence and heard as two beeps.
+            // Measured on the speaker output, cue first against microphone first:
+            // "50 ms, 200 ms of silence, 25 ms" every time against a whole 70 ms
+            // every time.
+            _recorder.Start();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _log.Write($"micro indisponible : {ex.Message}");
+            ShowBalloon("Micro indisponible", ex.Message);
+            return;
+        }
+
         if (!_coordinator.TryStartRecording())
         {
+            _recorder.Stop();
             return;
         }
 
@@ -154,18 +193,6 @@ internal sealed class TrayContext : ApplicationContext
         // seconds of loading are almost entirely hidden.
         _engines.SetBusy(true);
         _engines.BeginLoad();
-
-        try
-        {
-            _recorder.Start();
-        }
-        catch (InvalidOperationException ex)
-        {
-            _log.Write($"micro indisponible : {ex.Message}");
-            _coordinator.Cancel();
-            _engines.SetBusy(false);
-            ShowBalloon("Micro indisponible", ex.Message);
-        }
     }
 
     private void OnDictationEnded()
@@ -220,7 +247,11 @@ internal sealed class TrayContext : ApplicationContext
             // diagnosed: there is no telling a microphone that hears nothing
             // from an engine that recognises nothing. Two very different
             // faults, with the same symptom.
-            double peak = AudioLevel.Peak(audio.Wav.AsSpan(WavFile.HeaderSize));
+            // Only worth skipping when there is a cue to skip: with the tone
+            // off, the opening of the recording is as trustworthy as the rest.
+            double peak = AudioLevel.Peak(
+                audio.Wav.AsSpan(WavFile.HeaderSize),
+                _feedback.PlaysTone ? CueLead : TimeSpan.Zero);
 
             _log.Write(
                 $"{audio.Duration.TotalSeconds:F1} s dictées, niveau {peak:P1}, "
@@ -229,7 +260,7 @@ internal sealed class TrayContext : ApplicationContext
 
             if (result.Text.Length == 0)
             {
-                _log.Write(AudioLevel.IsSilent(audio.Wav.AsSpan(WavFile.HeaderSize))
+                _log.Write(peak < AudioLevel.SilenceThreshold
                     ? "  → rien inséré : le micro n'a capté aucun son"
                     : "  → rien inséré : du son a été capté mais aucune parole reconnue");
             }
@@ -292,6 +323,7 @@ internal sealed class TrayContext : ApplicationContext
     {
         _notifyIcon.Icon = _icons[state];
         _notifyIcon.Text = Describe(state);
+        _feedback.Apply(state);
     }
 
     private string Describe(DictationState state) => state switch
@@ -342,6 +374,7 @@ internal sealed class TrayContext : ApplicationContext
             _hook.Dispose();
             _recorder.Dispose();
             _engines.Dispose();
+            _feedback.Dispose();
 
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();

@@ -66,6 +66,20 @@ public sealed class ChordDetector
     /// <summary>Keys whose key-down we swallowed.</summary>
     private readonly HashSet<int> _swallowed = [];
 
+    /// <summary>
+    /// True from the moment a dictation is announced until every key of the
+    /// shortcut has been let go.
+    ///
+    /// Without it, a shortcut completed again without having been fully
+    /// released announces a second start. Releasing one key and pressing it
+    /// back is enough: the other slots are still held, so the chord reads as
+    /// complete once more. That is the ordinary way of letting go — the thumb
+    /// leaves the Windows key while the little finger stays on Control — and
+    /// the second start lands while the first dictation is still being
+    /// transcribed.
+    /// </summary>
+    private bool _started;
+
     public ChordDetector(IEnumerable<string> keyNames)
     {
         ArgumentNullException.ThrowIfNull(keyNames);
@@ -111,15 +125,20 @@ public sealed class ChordDetector
 
         _satisfiedBy[slot] = virtualKey;
 
-        if (!AllSatisfied() || IsActive)
+        if (!AllSatisfied() || IsActive || _started)
         {
             // Shortcut still incomplete: let it through. Swallowing here would
             // break Ctrl+C, since there is no way yet to know whether the user
             // is aiming for our shortcut.
+            //
+            // Complete again while _started still holds: the shortcut was only
+            // half released. The press goes through untouched rather than
+            // opening a dictation over the one being transcribed.
             return ChordDecision.Ignore;
         }
 
         IsActive = true;
+        _started = true;
         _swallowed.Add(virtualKey);
 
         return new ChordDecision(
@@ -139,6 +158,15 @@ public sealed class ChordDetector
         }
 
         _satisfiedBy[slot] = 0;
+
+        // The shortcut is armed again only once nothing is held any more. This
+        // is the release that pairs with _started, and it must be checked on
+        // every key-up, including those arriving after the transcription has
+        // begun.
+        if (NothingHeld())
+        {
+            _started = false;
+        }
 
         if (!IsActive)
         {
@@ -163,6 +191,7 @@ public sealed class ChordDetector
         Array.Clear(_satisfiedBy);
         _swallowed.Clear();
         IsActive = false;
+        _started = false;
 
         return wasActive
             ? new ChordDecision(ChordAction.Cancel, Swallow: false)
@@ -188,6 +217,9 @@ public sealed class ChordDetector
     private int FindSatisfiedSlot(int virtualKey) => Array.IndexOf(_satisfiedBy, virtualKey);
 
     private bool AllSatisfied() => Array.IndexOf(_satisfiedBy, 0) < 0;
+
+    /// <summary>True when no key of the shortcut is held any more.</summary>
+    private bool NothingHeld() => Array.TrueForAll(_satisfiedBy, key => key == 0);
 
     /// <summary>
     /// True when a Windows key of the shortcut was delivered to Windows before

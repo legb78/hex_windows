@@ -1,6 +1,6 @@
 # HexWin
 
-Local voice dictation for Windows. Hold **`Ctrl` + `Windows`**, speak, release —
+Local voice dictation for Windows. Hold **`CapsLock`**, speak, release —
 the text lands at your cursor.
 
 Everything runs **on your machine**. No cloud service, no subscription, no
@@ -82,7 +82,7 @@ The tray icon shows the current state:
 | Orange | Transcribing |
 | Crossed grey | Model not found |
 
-Hold `Ctrl` + `Windows`, speak, release. The text arrives at your cursor.
+Hold `CapsLock`, speak, release. The text arrives at your cursor.
 
 A circle appears at the top of the screen while the application is busy, in
 the same colours as the tray icon — red while recording, orange while
@@ -152,6 +152,10 @@ engine understood you, and whether the text made it out.
 
 ### Known limits
 
+- **CapsLock no longer locks capitals** while HexWin runs: the hook swallows the
+  key, so Windows never sees it. It behaves normally again once HexWin is
+  stopped, and briefly while the watchdog reinstalls the hook after a long
+  silence. Pick another key in `settings.json` if you need the lock.
 - **Elevated windows**: a non-elevated app cannot send keystrokes to a window
   running as administrator (Windows UIPI isolation). Run HexWin elevated if you
   need to dictate into one.

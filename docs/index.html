@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HexWin — Local voice dictation for Windows, offline speech to text</title>
-<meta name="description" content="Free, open-source push-to-talk dictation for Windows. Hold a hotkey, speak, release — the text lands at your cursor. Runs entirely offline on CPU with NVIDIA Parakeet TDT v3. No cloud, no account, no subscription.">
+<title>HexWin — Local voice dictation for Windows, like Hex on macOS</title>
+<meta name="description" content="Free, open-source push-to-talk dictation for Windows — what Hex is on macOS. Hold a hotkey, speak, release: the text lands at your cursor. Runs entirely offline on CPU with NVIDIA Parakeet TDT v3. No cloud, no account, no subscription.">
 <link rel="canonical" href="https://legb78.github.io/hex_windows/">
 <meta name="theme-color" content="#0d1117">
 <meta property="og:type" content="website">
@@ -26,7 +26,16 @@
   "downloadUrl": "https://github.com/legb78/hex_windows/releases/latest",
   "license": "https://www.apache.org/licenses/LICENSE-2.0",
   "author": { "@type": "Person", "name": "Djamel OUAZAR" },
-  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "softwareRequirements": "Windows 10 or Windows 11, x64",
+  "featureList": [
+    "Push-to-talk dictation with a global hotkey",
+    "Fully offline transcription on CPU",
+    "Automatic language identification across 25 European languages",
+    "Inserts text into any application"
+  ],
+  "isAccessibleForFree": true,
+  "sameAs": "https://github.com/legb78/hex_windows"
 }
 </script>
 <style>
@@ -109,6 +118,23 @@
   </div>
   <p class="meta">Windows 10 / 11 · x64 · Apache 2.0 · no account, no subscription, no telemetry</p>
 </header>
+
+<section>
+  <h2>Hex, but for Windows</h2>
+  <p><a href="https://github.com/kitlangton/Hex">Hex</a> is a hold-to-talk dictation
+  app for macOS, and a good one. It has never run on Windows, and the question comes
+  up often enough that this exists to answer it: <strong>HexWin is an independent
+  Windows application built on the same idea and the same engine</strong> &mdash;
+  hold a key, speak, release, the text lands at your cursor, and nothing leaves the
+  machine.</p>
+  <p>It is not a port. The macOS original is Swift on CoreAudio; this is C# on .NET 9,
+  WASAPI and a Win32 keyboard hook, written from scratch for the platform. What the
+  two share is the shape of the thing and <strong>NVIDIA Parakeet TDT v3</strong>
+  underneath.</p>
+  <p>If you landed here looking for a Windows alternative to Hex, Wispr Flow,
+  SuperWhisper or Windows&nbsp;Speech Recognition: this is free, open source under
+  Apache&nbsp;2.0, runs offline on CPU, and asks for no account.</p>
+</section>
 
 <section>
   <h2>It answers before you finish thinking</h2>

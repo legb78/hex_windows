@@ -6,6 +6,18 @@ the text lands at your cursor.
 Everything runs **on your machine**. No cloud service, no subscription, no
 network connection needed once the model is downloaded.
 
+## Hex, but for Windows
+
+[Hex](https://github.com/kitlangton/Hex) is a hold-to-talk dictation app for
+macOS, and a good one. It has never run on Windows, and the question comes up
+often enough that this exists to answer it.
+
+HexWin is **not a port**. The macOS original is Swift on CoreAudio; this is C#
+on .NET 9, WASAPI and a Win32 keyboard hook, written from scratch for the
+platform. What the two share is the shape of the thing and the engine
+underneath. If you came looking for a Windows alternative to Hex, Wispr Flow or
+SuperWhisper: this is free, open source, offline, and asks for no account.
+
 **[legb78.github.io/hex_windows](https://legb78.github.io/hex_windows/)** — the
 short version, if you would rather see it than read this.
 

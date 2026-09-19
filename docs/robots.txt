@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://legb78.github.io/hex_windows/sitemap.xml

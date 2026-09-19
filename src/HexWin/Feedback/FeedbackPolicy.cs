@@ -55,10 +55,23 @@ public sealed class FeedbackPolicy
     }
 
     /// <summary>True when the configuration asks for the circle.</summary>
-    public bool ShowsCircle { get; }
+    public bool ShowsCircle { get; set; }
 
     /// <summary>True when the configuration asks for the tones.</summary>
-    public bool PlaysTone { get; }
+    public bool PlaysTone { get; set; }
+
+    /// <summary>
+    /// The two channels read back as the single mode stored in settings.json.
+    /// The file keeps one field with four values; the menu offers two
+    /// independent switches, and this is where the two views meet.
+    /// </summary>
+    public FeedbackMode Mode => (ShowsCircle, PlaysTone) switch
+    {
+        (true, true) => FeedbackMode.Both,
+        (true, false) => FeedbackMode.Visual,
+        (false, true) => FeedbackMode.Sound,
+        (false, false) => FeedbackMode.None,
+    };
 
     /// <summary>
     /// Cue for the state just reached.

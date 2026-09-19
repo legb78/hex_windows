@@ -95,6 +95,11 @@ Right-clicking the icon opens the settings file and the log folder, and offers a
 **start with Windows** toggle. Worth enabling: the app does not come back on its
 own after a reboot otherwise.
 
+The same menu carries the two cues as independent switches — **the circle during
+dictation** and **the tone at each end**. Both take effect on the next dictation,
+with no restart, and are written back to `settings.json` as the `feedback` value
+below. Everything else still goes through the file.
+
 ## Settings
 
 Everything lives in `settings.json`, next to the executable. Comments are

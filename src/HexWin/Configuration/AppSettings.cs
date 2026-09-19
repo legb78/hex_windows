@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace HexWin.Configuration;
 
@@ -240,6 +241,62 @@ public sealed class AppSettings
     }
 
     public string ToJson() => JsonSerializer.Serialize(this, JsonOptions);
+
+    /// <summary>
+    /// Rewrites one setting in the file, leaving everything else byte for byte
+    /// as it was.
+    ///
+    /// <para>Serialising the whole object would be shorter and wrong: the file
+    /// is full of comments explaining what each value does, and
+    /// <see cref="JsonSerializer"/> cannot write them back. A user who ticked a
+    /// menu entry would silently lose the documentation they rely on. So we
+    /// replace the one line and touch nothing else.</para>
+    ///
+    /// <para>Returns false when the file cannot be read or written — it may be
+    /// open in an editor, or sit in a read-only folder. The caller has already
+    /// applied the change in memory; failing to persist it is worth a log line,
+    /// never an interruption.</para>
+    /// </summary>
+    public static bool TryRewriteValue(string path, string key, string jsonValue)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return false;
+            }
+
+            string[] lines = File.ReadAllLines(path);
+            var pattern = new Regex($@"^(\s*""{Regex.Escape(key)}""\s*:\s*).*?(,?)\s*$");
+            bool written = false;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                Match match = pattern.Match(lines[i]);
+
+                if (!match.Success)
+                {
+                    continue;
+                }
+
+                lines[i] = match.Groups[1].Value + jsonValue + match.Groups[2].Value;
+                written = true;
+                break;
+            }
+
+            if (!written)
+            {
+                return false;
+            }
+
+            File.WriteAllLines(path, lines);
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
 
     // --- Validation -----------------------------------------------------------
 

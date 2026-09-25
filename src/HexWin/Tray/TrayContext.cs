@@ -69,8 +69,10 @@ internal sealed class TrayContext : ApplicationContext
         _hook.Stopped += (_, _) => OnDictationEnded();
         _hook.Cancelled += (_, _) => OnDictationCancelled();
 
-        _notifyIcon = BuildNotifyIcon();
+        // The feedback comes first: the menu reads the state of its two
+        // switches while it is being built.
         _feedback = new DictationFeedback(settings, _log);
+        _notifyIcon = BuildNotifyIcon();
 
         _coordinator.StateChanged += (_, state) => ApplyState(state);
         ApplyState(_coordinator.State);
@@ -299,6 +301,32 @@ internal sealed class TrayContext : ApplicationContext
         menu.Items.Add("Ouvrir le dossier des journaux", null, (_, _) => OpenLogFolder());
         menu.Items.Add(new ToolStripSeparator());
 
+        var showCircle = new ToolStripMenuItem("Afficher le cercle pendant la dictée")
+        {
+            Checked = _feedback.ShowsCircle,
+            CheckOnClick = true,
+        };
+        showCircle.CheckedChanged += (sender, _) =>
+        {
+            _feedback.SetShowsCircle(((ToolStripMenuItem)sender!).Checked);
+            PersistFeedbackMode();
+        };
+        menu.Items.Add(showCircle);
+
+        var playTone = new ToolStripMenuItem("Jouer un son au début et à la fin")
+        {
+            Checked = _feedback.PlaysTone,
+            CheckOnClick = true,
+        };
+        playTone.CheckedChanged += (sender, _) =>
+        {
+            _feedback.SetPlaysTone(((ToolStripMenuItem)sender!).Checked);
+            PersistFeedbackMode();
+        };
+        menu.Items.Add(playTone);
+
+        menu.Items.Add(new ToolStripSeparator());
+
         var autoStart = new ToolStripMenuItem("Lancer au démarrage de Windows")
         {
             Checked = AutoStart.IsEnabled,
@@ -341,6 +369,29 @@ internal sealed class TrayContext : ApplicationContext
         _notifyIcon.BalloonTipTitle = title;
         _notifyIcon.BalloonTipText = message;
         _notifyIcon.ShowBalloonTip(10_000);
+    }
+
+    /// <summary>
+    /// Writes the two switches back to settings.json, so the choice survives a
+    /// restart.
+    ///
+    /// <para>The change is already in effect when this runs: the menu acts on
+    /// the live feedback first, and only then records it. A file that cannot be
+    /// written — open in an editor, read-only folder — therefore costs the user
+    /// nothing today, only the memory of the choice tomorrow. That is worth a
+    /// line in the log, not an interruption.</para>
+    /// </summary>
+    private void PersistFeedbackMode()
+    {
+        _settings.Feedback = _feedback.Mode;
+
+        string path = Path.Combine(AppContext.BaseDirectory, AppSettings.FileName);
+        bool written = AppSettings.TryRewriteValue(path, "feedback", $"\"{_feedback.Mode}\"");
+
+        if (!written)
+        {
+            _log.Write($"retour visuel et sonore réglé sur {_feedback.Mode}, mais settings.json n'a pas pu être mis à jour");
+        }
     }
 
     private void OpenSettings() =>

@@ -107,6 +107,74 @@ public class ChordDetectorTests
         Assert.True(detector.OnKeyDown(Win).Swallow);
     }
 
+    // --- A start per press ------------------------------------------------------
+
+    [Fact]
+    public void A_half_released_shortcut_does_not_start_a_second_dictation()
+    {
+        // The way a shortcut is really let go: the thumb leaves the Windows key
+        // while the little finger stays on Control. Pressing Windows back found
+        // the chord complete again and opened a dictation over the one being
+        // transcribed.
+        ChordDetector detector = CtrlWin();
+        detector.OnKeyDown(Ctrl);
+        detector.OnKeyDown(Win);
+        detector.OnKeyUp(Win);
+
+        Assert.Equal(ChordAction.None, detector.OnKeyDown(Win).Action);
+        Assert.False(detector.IsActive);
+    }
+
+    [Fact]
+    public void Releasing_every_key_arms_the_shortcut_again()
+    {
+        // The counterpart of the test above: dictating twice in a row must keep
+        // working, once the shortcut has really been let go.
+        ChordDetector detector = CtrlWin();
+        detector.OnKeyDown(Ctrl);
+        detector.OnKeyDown(Win);
+        detector.OnKeyUp(Win);
+        detector.OnKeyUp(Ctrl);
+
+        detector.OnKeyDown(Ctrl);
+
+        Assert.Equal(ChordAction.Start, detector.OnKeyDown(Win).Action);
+    }
+
+    [Fact]
+    public void A_refused_press_keeps_the_swallowing_balance()
+    {
+        // A press let through must be released through as well. Swallowing the
+        // key-up of a key-down that went to Windows would leave the system
+        // convinced the key is still held.
+        ChordDetector detector = CtrlWin();
+        detector.OnKeyDown(Ctrl);
+        detector.OnKeyDown(Win);
+        detector.OnKeyUp(Win);
+
+        bool swallowedDown = detector.OnKeyDown(Win).Swallow;
+        bool swallowedUp = detector.OnKeyUp(Win).Swallow;
+
+        Assert.False(swallowedDown);
+        Assert.Equal(swallowedDown, swallowedUp);
+    }
+
+    [Fact]
+    public void A_reset_arms_the_shortcut_again()
+    {
+        // Reset is what saves a session that came back from a lock with keys
+        // believed held. It has to clear the start as well, or the shortcut
+        // would stay silent for good.
+        ChordDetector detector = CtrlWin();
+        detector.OnKeyDown(Ctrl);
+        detector.OnKeyDown(Win);
+        detector.Reset();
+
+        detector.OnKeyDown(Ctrl);
+
+        Assert.Equal(ChordAction.Start, detector.OnKeyDown(Win).Action);
+    }
+
     // --- Swallowing balance -----------------------------------------------------
 
     [Fact]

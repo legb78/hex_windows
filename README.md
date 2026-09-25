@@ -1,10 +1,22 @@
 # HexWin
 
-Local voice dictation for Windows. Hold **`Ctrl` + `Windows`**, speak, release —
+Local voice dictation for Windows. Hold **right `Shift`**, speak, release —
 the text lands at your cursor.
 
 Everything runs **on your machine**. No cloud service, no subscription, no
 network connection needed once the model is downloaded.
+
+## Hex, but for Windows
+
+[Hex](https://github.com/kitlangton/Hex) is a hold-to-talk dictation app for
+macOS, and a good one. It has never run on Windows, and the question comes up
+often enough that this exists to answer it.
+
+HexWin is **not a port**. The macOS original is Swift on CoreAudio; this is C#
+on .NET 9, WASAPI and a Win32 keyboard hook, written from scratch for the
+platform. What the two share is the shape of the thing and the engine
+underneath. If you came looking for a Windows alternative to Hex, Wispr Flow or
+SuperWhisper: this is free, open source, offline, and asks for no account.
 
 **[legb78.github.io/hex_windows](https://legb78.github.io/hex_windows/)** — the
 short version, if you would rather see it than read this.
@@ -82,7 +94,7 @@ The tray icon shows the current state:
 | Orange | Transcribing |
 | Crossed grey | Model not found |
 
-Hold `Ctrl` + `Windows`, speak, release. The text arrives at your cursor.
+Hold right `Shift`, speak, release. The text arrives at your cursor.
 
 A circle appears at the top of the screen while the application is busy, in
 the same colours as the tray icon — red while recording, orange while
@@ -94,6 +106,11 @@ own text; this is the same signal, where the eye already is. Both are set by
 Right-clicking the icon opens the settings file and the log folder, and offers a
 **start with Windows** toggle. Worth enabling: the app does not come back on its
 own after a reboot otherwise.
+
+The same menu carries the two cues as independent switches — **the circle during
+dictation** and **the tone at each end**. Both take effect on the next dictation,
+with no restart, and are written back to `settings.json` as the `feedback` value
+below. Everything else still goes through the file.
 
 ## Settings
 
@@ -152,6 +169,11 @@ engine understood you, and whether the text made it out.
 
 ### Known limits
 
+- **The right `Shift` no longer shifts** while HexWin runs: the hook swallows the
+  key, so Windows never sees it. Use the left one for capitals. It behaves
+  normally again once HexWin is stopped, and briefly while the watchdog
+  reinstalls the hook after a long silence. Pick another key in `settings.json`
+  to get it back.
 - **Elevated windows**: a non-elevated app cannot send keystrokes to a window
   running as administrator (Windows UIPI isolation). Run HexWin elevated if you
   need to dictate into one.

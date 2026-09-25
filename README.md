@@ -1,6 +1,6 @@
 # HexWin
 
-Local voice dictation for Windows. Hold **left `Shift`**, speak, release —
+Local voice dictation for Windows. Hold **right `Shift`**, speak, release —
 the text lands at your cursor.
 
 Everything runs **on your machine**. No cloud service, no subscription, no
@@ -94,7 +94,7 @@ The tray icon shows the current state:
 | Orange | Transcribing |
 | Crossed grey | Model not found |
 
-Hold left `Shift`, speak, release. The text arrives at your cursor.
+Hold right `Shift`, speak, release. The text arrives at your cursor.
 
 A circle appears at the top of the screen while the application is busy, in
 the same colours as the tray icon — red while recording, orange while
@@ -169,8 +169,8 @@ engine understood you, and whether the text made it out.
 
 ### Known limits
 
-- **The left `Shift` no longer shifts** while HexWin runs: the hook swallows the
-  key, so Windows never sees it. Use the right one for capitals. It behaves
+- **The right `Shift` no longer shifts** while HexWin runs: the hook swallows the
+  key, so Windows never sees it. Use the left one for capitals. It behaves
   normally again once HexWin is stopped, and briefly while the watchdog
   reinstalls the hook after a long silence. Pick another key in `settings.json`
   to get it back.

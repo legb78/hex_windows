@@ -9,8 +9,9 @@
   // Download it with get-model.ps1
   "modelPath": "models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
 
-  // There is no language setting: Parakeet v3 works out on its own which of
-  // its 25 European languages is being spoken.
+  // The dictation language is not a setting: Parakeet v3 works out on its own
+  // which of its 25 European languages is being spoken. "language", further
+  // down, is only the language of HexWin's own windows and menus.
 
   // Keys to hold in order to dictate.
   // Accepted values: Ctrl, LeftCtrl, RightCtrl, Alt, LeftAlt, RightAlt,
@@ -102,6 +103,11 @@
   "feedbackSize": 64,
   "feedbackOpacity": 235,
   "feedbackTopMargin": 40,
+
+  // Language of the settings window, the tray menu and the messages.
+  // "auto" follows the Windows display language; "fr" or "en" force one.
+  // Not the dictation language: the model detects which one you speak.
+  "language": "auto",
 
   // Logs each dictation: duration, captured level, characters produced.
   // Those three numbers together tell you whether the microphone heard you,

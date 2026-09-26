@@ -107,7 +107,7 @@ internal static class DesktopShortcut
         {
             link.SetPath(target);
             link.SetWorkingDirectory(Path.GetDirectoryName(target) ?? "");
-            link.SetDescription("HexWin — dictée vocale locale. Ouvre les paramètres quand HexWin tourne déjà.");
+            link.SetDescription(HexWin.Ui.UiStrings.Current.DesktopShortcutDescription);
             link.SetIconLocation(target, 0);
 
             ((IPersistFile)link).Save(shortcutPath, fRemember: true);

@@ -403,6 +403,27 @@ public class AppSettingsTests
 
         Assert.Equal(code.PauseMilliseconds, file.PauseMilliseconds);
         Assert.Equal(code.Segmentation, file.Segmentation);
+        Assert.Equal(code.Language, file.Language);
+    }
+
+    [Theory]
+    [InlineData("fr", "fr")]
+    [InlineData("EN", "en")]
+    [InlineData(" auto ", "auto")]
+    [InlineData("de", "auto")]
+    [InlineData("", "auto")]
+    public void An_unknown_language_falls_back_to_following_windows(string asked, string expected)
+    {
+        // Following Windows always lands on a language the user reads.
+        AppSettings settings = AppSettings.Parse($$"""{"language": "{{asked}}"}""");
+
+        Assert.Equal(expected, settings.Language);
+    }
+
+    [Fact]
+    public void The_language_follows_windows_by_default()
+    {
+        Assert.Equal("auto", AppSettings.Parse("{}").Language);
     }
 
     [Fact]

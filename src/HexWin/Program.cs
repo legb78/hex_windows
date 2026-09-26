@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using HexWin.Audio;
 using HexWin.Configuration;
 using HexWin.Diagnostics;
@@ -8,6 +9,7 @@ using HexWin.Interop;
 using HexWin.Output;
 using HexWin.Transcription;
 using HexWin.Tray;
+using HexWin.Ui;
 
 namespace HexWin;
 
@@ -90,13 +92,16 @@ internal static class Program
         string baseDirectory = AppContext.BaseDirectory;
         AppSettings settings = AppSettings.Load(Path.Combine(baseDirectory, AppSettings.FileName));
 
+        // Chosen before anything is shown: the first thing the user may see is
+        // the missing-model dialog just below.
+        UiStrings.Current = UiStrings.For(settings.Language, CultureInfo.CurrentUICulture);
+
         string? modelPath = ModelLocator.Resolve(settings.ModelPath, baseDirectory);
 
         if (modelPath is null)
         {
             MessageBox.Show(
-                $"Modèle introuvable : {settings.ModelPath}\n\n"
-                + "Lancez scripts/get-model.ps1 pour le télécharger.",
+                UiStrings.Current.StartupModelMissing(settings.ModelPath),
                 "HexWin",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
@@ -139,11 +144,11 @@ internal static class Program
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            path = "(journal inaccessible)";
+            path = UiStrings.Current.CrashLogUnavailable;
         }
 
         MessageBox.Show(
-            $"HexWin s'est arrêté sur une erreur :\n\n{error.Message}\n\nDétails dans {path}",
+            UiStrings.Current.Crashed(error.Message, path),
             "HexWin",
             MessageBoxButtons.OK,
             MessageBoxIcon.Error);

@@ -83,10 +83,12 @@ public class SettingsDiffTests
     [InlineData("feedbackOpacity")]
     [InlineData("pauseMilliseconds")]
     [InlineData("segmentation")]
+    [InlineData("language")]
     public void Settings_applied_on_the_fly_are_not_flagged(string key)
     {
         var after = new AppSettings
         {
+            Language = "en",
             Segmentation = true,
             PauseMilliseconds = 0,
             Hotkey = ["F13"],

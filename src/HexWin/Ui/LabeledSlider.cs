@@ -23,7 +23,7 @@ internal sealed class LabeledSlider : Panel
         Slider = new Slider(theme, minimum, maximum, step)
         {
             Location = new Point(0, Dpi.S(2)),
-            Size = new Size(Dpi.S(150), Dpi.S(24)),
+            Size = new Size(Dpi.S(132), Dpi.S(24)),
         };
 
         _value = new Label
@@ -33,7 +33,8 @@ internal sealed class LabeledSlider : Panel
             BackColor = theme.Card,
             AutoSize = false,
             TextAlign = ContentAlignment.MiddleRight,
-            Bounds = new Rectangle(Dpi.S(152), 0, Dpi.S(64), Dpi.S(28)),
+            AutoEllipsis = true,
+            Bounds = new Rectangle(Dpi.S(134), 0, Dpi.S(82), Dpi.S(28)),
         };
 
         Slider.ValueChanged += (_, _) => Show(Slider.Value);

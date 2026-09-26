@@ -132,10 +132,12 @@ jobs:
             1. Unzip the archive wherever you like.
             2. Open PowerShell in that folder and run `.\get-model.ps1` to
                download the recognition model (about 480 MB).
-            3. Double-click `HexWin.exe`.
+            3. Double-click `HexWin.exe`. On the first start it offers to put
+               a shortcut on the desktop: that shortcut starts HexWin, or opens
+               its settings when HexWin is already running.
 
             The tray icon starts grey while the model is checked, then turns
-            blue. Hold `Ctrl` + `Windows`, speak, release.
+            blue. Hold the right `Shift`, speak, release.
 
             No .NET installation is required: everything is bundled.
 

@@ -133,13 +133,20 @@ public sealed class AppSettings
     private const int DefaultFeedbackSize = 64;
     private const int DefaultFeedbackOpacity = 235;
     private const int DefaultFeedbackTopMargin = 40;
-    private const int MaxUnloadAfterMinutes = 1_440;
-    private const int MaxThreads = 32;
 
-    private const int MinFeedbackSize = 16;
-    private const int MaxFeedbackSize = 512;
-    private const int MinFeedbackOpacity = 20;
-    private const int MaxFeedbackTopMargin = 2_000;
+    // The bounds Normalize enforces. Internal rather than private so the
+    // settings window offers exactly the range the file accepts: a control
+    // that allowed more would have its value corrected behind the user's back.
+    internal const int MinRecordingMillisecondsCeiling = 5_000;
+    internal const int MaxRecordingSecondsFloor = 5;
+    internal const int MaxRecordingSecondsCeiling = 600;
+    internal const int MaxUnloadAfterMinutes = 1_440;
+    internal const int MaxThreads = 32;
+
+    internal const int MinFeedbackSize = 16;
+    internal const int MaxFeedbackSize = 512;
+    internal const int MinFeedbackOpacity = 20;
+    internal const int MaxFeedbackTopMargin = 2_000;
 
     private static readonly string[] DefaultHotkey = ["Ctrl", "Win"];
 
@@ -243,6 +250,13 @@ public sealed class AppSettings
     public string ToJson() => JsonSerializer.Serialize(this, JsonOptions);
 
     /// <summary>
+    /// An independent copy, for a settings window to edit without touching
+    /// the configuration the application is running on until the user saves.
+    /// Going through JSON keeps it in step with every property added later.
+    /// </summary>
+    public AppSettings Clone() => Parse(ToJson());
+
+    /// <summary>
     /// Rewrites one setting in the file, leaving everything else byte for byte
     /// as it was.
     ///
@@ -257,45 +271,123 @@ public sealed class AppSettings
     /// applied the change in memory; failing to persist it is worth a log line,
     /// never an interruption.</para>
     /// </summary>
-    public static bool TryRewriteValue(string path, string key, string jsonValue)
+    public static bool TryRewriteValue(string path, string key, string jsonValue) =>
+        RewriteValues(path, [new(key, jsonValue)], appendMissing: false).Count == 0;
+
+    /// <summary>
+    /// Rewrites several settings in one pass, under the same rule as
+    /// <see cref="TryRewriteValue"/>: each value replaces its own line, and
+    /// every other line — comments above all — stays as it was.
+    ///
+    /// <para>With <paramref name="appendMissing"/>, a key the file does not
+    /// carry yet is added just before the closing brace. A settings.json kept
+    /// from an older version lacks the settings introduced since, and a window
+    /// that saved everything except those would look like it had worked. The
+    /// addition is refused rather than risked when the line before the brace
+    /// ends in a comment: the comma it needs would land inside the comment,
+    /// and the file would no longer parse.</para>
+    ///
+    /// <para>The file is written once, or not at all. Returns the keys that
+    /// could not be persisted — every key, when the file cannot be read or
+    /// written.</para>
+    /// </summary>
+    public static IReadOnlyList<string> RewriteValues(
+        string path,
+        IReadOnlyList<KeyValuePair<string, string>> values,
+        bool appendMissing)
     {
+        string[] allKeys = [.. values.Select(value => value.Key)];
+
         try
         {
             if (!File.Exists(path))
             {
-                return false;
+                return allKeys;
             }
 
-            string[] lines = File.ReadAllLines(path);
-            var pattern = new Regex($@"^(\s*""{Regex.Escape(key)}""\s*:\s*).*?(,?)\s*$");
-            bool written = false;
+            List<string> lines = [.. File.ReadAllLines(path)];
+            List<KeyValuePair<string, string>> missing = [];
 
-            for (int i = 0; i < lines.Length; i++)
+            foreach (KeyValuePair<string, string> value in values)
             {
-                Match match = pattern.Match(lines[i]);
-
-                if (!match.Success)
+                if (!ReplaceLine(lines, value.Key, value.Value))
                 {
-                    continue;
+                    missing.Add(value);
                 }
-
-                lines[i] = match.Groups[1].Value + jsonValue + match.Groups[2].Value;
-                written = true;
-                break;
             }
 
-            if (!written)
+            if (appendMissing && missing.Count > 0 && TryAppend(lines, missing))
             {
-                return false;
+                missing.Clear();
             }
 
-            File.WriteAllLines(path, lines);
-            return true;
+            if (missing.Count < values.Count)
+            {
+                File.WriteAllLines(path, lines);
+            }
+
+            return [.. missing.Select(value => value.Key)];
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
+            return allKeys;
+        }
+    }
+
+    private static bool ReplaceLine(List<string> lines, string key, string jsonValue)
+    {
+        var pattern = new Regex($@"^(\s*""{Regex.Escape(key)}""\s*:\s*).*?(,?)\s*$");
+
+        for (int i = 0; i < lines.Count; i++)
+        {
+            Match match = pattern.Match(lines[i]);
+
+            if (match.Success)
+            {
+                lines[i] = match.Groups[1].Value + jsonValue + match.Groups[2].Value;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryAppend(List<string> lines, List<KeyValuePair<string, string>> values)
+    {
+        int closing = lines.FindLastIndex(line => line.Trim() == "}");
+
+        if (closing < 0)
+        {
             return false;
         }
+
+        int previous = closing - 1;
+
+        while (previous >= 0 && (lines[previous].Trim().Length == 0 || lines[previous].TrimStart().StartsWith("//", StringComparison.Ordinal)))
+        {
+            previous--;
+        }
+
+        if (previous < 0 || lines[previous].Contains("//", StringComparison.Ordinal) || lines[previous].Contains("/*", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        string last = lines[previous].TrimEnd();
+
+        if (!last.EndsWith(',') && !last.EndsWith('{'))
+        {
+            lines[previous] = last + ",";
+        }
+
+        string indent = last.EndsWith('{')
+            ? "  "
+            : lines[previous][..(lines[previous].Length - lines[previous].TrimStart().Length)];
+
+        lines.InsertRange(closing, values.Select((value, index) =>
+            $"{indent}\"{value.Key}\": {value.Value}{(index < values.Count - 1 ? "," : "")}"));
+
+        return true;
     }
 
     // --- Validation -----------------------------------------------------------
@@ -313,8 +405,8 @@ public sealed class AppSettings
         Hotkey = NormalizeHotkey(Hotkey);
         Provider = NormalizeProvider(Provider);
 
-        MinRecordingMilliseconds = Math.Clamp(MinRecordingMilliseconds, 0, 5_000);
-        MaxRecordingSeconds = Math.Clamp(MaxRecordingSeconds, 5, 600);
+        MinRecordingMilliseconds = Math.Clamp(MinRecordingMilliseconds, 0, MinRecordingMillisecondsCeiling);
+        MaxRecordingSeconds = Math.Clamp(MaxRecordingSeconds, MaxRecordingSecondsFloor, MaxRecordingSecondsCeiling);
         Threads = Math.Clamp(Threads, 1, MaxThreads);
 
         // Zero stays allowed: that is how the model is kept resident.

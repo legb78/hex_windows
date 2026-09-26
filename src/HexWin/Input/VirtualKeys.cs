@@ -68,6 +68,32 @@ public static class VirtualKeys
         throw new ArgumentException($"Unknown key: {name}", nameof(name));
     }
 
+    /// <summary>
+    /// The settings.json name of one physical key, or <c>null</c> when that key
+    /// cannot be part of a shortcut.
+    ///
+    /// <para>The reverse of <see cref="Resolve"/>, and deliberately the
+    /// <i>sided</i> name: the hook only ever sees the left or the right key, so
+    /// a captured shortcut says which one was pressed. Returning "Shift" for the
+    /// right Shift would silently widen the shortcut to both keys — and take
+    /// away the one the user still types capitals with.</para>
+    /// </summary>
+    public static string? NameOf(int virtualKey) => virtualKey switch
+    {
+        LeftControl => "LeftCtrl",
+        RightControl => "RightCtrl",
+        LeftMenu => "LeftAlt",
+        RightMenu => "RightAlt",
+        LeftShift => "LeftShift",
+        RightShift => "RightShift",
+        LeftWindows => "LeftWin",
+        RightWindows => "RightWin",
+        CapsLock => "CapsLock",
+        Space => "Space",
+        >= F13 and <= F13 + 11 => $"F{13 + (virtualKey - F13)}",
+        _ => null,
+    };
+
     /// <summary>True when the code is one of the two Windows keys.</summary>
     public static bool IsWindowsKey(int virtualKey) =>
         virtualKey is LeftWindows or RightWindows;

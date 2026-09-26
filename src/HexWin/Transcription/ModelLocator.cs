@@ -54,6 +54,34 @@ public static class ModelLocator
     }
 
     /// <summary>
+    /// The path to write in settings.json for a model folder the user picked.
+    ///
+    /// <para>Relative when the folder sits under the executable's, so that
+    /// moving the whole application elsewhere keeps working — the default
+    /// model lives there. Absolute otherwise: a path climbing out with
+    /// <c>..</c> would break the moment the application moved, while an
+    /// absolute one names the folder the user actually chose.</para>
+    ///
+    /// <para>Forward slashes, as in the file shipped with the application: they
+    /// need no escaping in JSON, and Windows accepts them.</para>
+    /// </summary>
+    public static string ToConfiguredPath(string selectedDirectory, string baseDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(selectedDirectory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(baseDirectory);
+
+        string selected = Path.GetFullPath(selectedDirectory);
+        string relative = Path.GetRelativePath(Path.GetFullPath(baseDirectory), selected);
+
+        bool inside = !Path.IsPathRooted(relative)
+            && relative != ".."
+            && !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+            && !relative.StartsWith("../", StringComparison.Ordinal);
+
+        return (inside ? relative : selected).Replace('\\', '/');
+    }
+
+    /// <summary>
     /// Variant wired to the real file system. The Parakeet model is a folder —
     /// encoder, decoder, joiner and vocabulary — hence Directory.Exists rather
     /// than File.Exists.

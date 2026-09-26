@@ -79,8 +79,13 @@ internal static class Program
 
         if (!isFirst)
         {
+            // Launched again — from the desktop shortcut, typically — while
+            // already running: the user wants the settings, not a second copy.
+            SingleInstance.AskRunningInstanceToShowSettings();
             return 0;
         }
+
+        using EventWaitHandle showSettings = SingleInstance.CreateListener();
 
         string baseDirectory = AppContext.BaseDirectory;
         AppSettings settings = AppSettings.Load(Path.Combine(baseDirectory, AppSettings.FileName));
@@ -109,7 +114,7 @@ internal static class Program
 
         try
         {
-            using var context = new TrayContext(settings, modelPath);
+            using var context = new TrayContext(settings, modelPath, showSettings);
             Application.Run(context);
             return 0;
         }

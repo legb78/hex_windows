@@ -40,10 +40,11 @@ internal sealed partial class KeyboardHook : IDisposable
     private ChordDetector _detector;
 
     /// <summary>
-    /// Receives every key while a shortcut is being captured, instead of the
-    /// detector. Null the rest of the time.
+    /// Offered every key while a shortcut is being captured, instead of the
+    /// detector. Answers false to hand the key back to Windows — and the
+    /// capture ends there. Null the rest of the time.
     /// </summary>
-    private Action<int, bool>? _captureObserver;
+    private Func<int, bool, bool>? _captureObserver;
 
     /// <summary>
     /// Keys whose key-down went to a capture. Their key-up is swallowed too,
@@ -123,8 +124,12 @@ internal sealed partial class KeyboardHook : IDisposable
     }
 
     /// <summary>
-    /// Hands every key to <paramref name="observer"/> — virtual code, and true
-    /// for a key-down — and swallows it, until <see cref="EndCapture"/>.
+    /// Offers every key to <paramref name="observer"/> — virtual code, and true
+    /// for a key-down — and swallows the ones it takes, until
+    /// <see cref="EndCapture"/>. A key it declines goes on to Windows untouched,
+    /// and ends the capture: that is how a capture left running behind a window
+    /// that lost the focus gives the keyboard back on the very next key,
+    /// instead of eating what the user types elsewhere.
     ///
     /// <para>Swallowed, because the keys worth capturing all do something on
     /// their own: the Windows key opens the Start menu, CapsLock toggles
@@ -136,7 +141,7 @@ internal sealed partial class KeyboardHook : IDisposable
     /// capture on the first complete gesture, on Escape, and as soon as it
     /// loses the focus.</para>
     /// </summary>
-    public void BeginCapture(Action<int, bool> observer)
+    public void BeginCapture(Func<int, bool, bool> observer)
     {
         ArgumentNullException.ThrowIfNull(observer);
 
@@ -243,9 +248,16 @@ internal sealed partial class KeyboardHook : IDisposable
 
         if (keyDown && _captureObserver is { } observer)
         {
-            _capturedDown.Add(virtualKey);
-            observer(virtualKey, true);
-            return 1;
+            if (observer(virtualKey, true))
+            {
+                _capturedDown.Add(virtualKey);
+                return 1;
+            }
+
+            // Declined: the capture is over, and this key belongs to whatever
+            // the user is typing into. It falls through to the detector like
+            // any other.
+            _captureObserver = null;
         }
 
         ChordDecision decision = message switch

@@ -47,6 +47,17 @@ public static class HotkeyText
     /// </summary>
     public static string? Caveat(IReadOnlyList<string> keys)
     {
+        // On layouts with an AltGr key — French among them — Windows sends a
+        // left Ctrl along with the right Alt, so one press of AltGr is captured
+        // as these two keys. Said plainly, because the user pressed a single key
+        // and reads two.
+        if (keys.Count == 2
+            && keys.Contains("LeftCtrl", StringComparer.OrdinalIgnoreCase)
+            && keys.Contains("RightAlt", StringComparer.OrdinalIgnoreCase))
+        {
+            return "Sans doute AltGr : il ne tapera plus @, # ni [ tant que HexWin tourne.";
+        }
+
         if (keys.Count != 1)
         {
             return null;

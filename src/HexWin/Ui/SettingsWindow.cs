@@ -233,7 +233,7 @@ internal sealed class SettingsWindow : Form
             Section("Performances"),
             Card(
                 new SettingRow(_theme, "Fils de calcul", "Au-delà de quelques-uns, le gain s'effondre.", _threads),
-                new SettingRow(_theme, "Libérer la mémoire après", "Le modèle occupe environ 1 Go en mémoire.", _unloadAfter)));
+                new SettingRow(_theme, "Libérer la mémoire après", "Le modèle occupe environ 1 Go.", _unloadAfter)));
 
         // --- General ----------------------------------------------------------
 
@@ -493,11 +493,25 @@ internal sealed class SettingsWindow : Form
     /// Runs inside the keyboard hook callback: nothing here may block, and
     /// above all no dialog — Windows would uninstall the hook past its deadline.
     /// </summary>
-    private void OnCapturedKey(int virtualKey, bool keyDown)
+    /// <returns>
+    /// False to give the key back to Windows: the capture only takes keys
+    /// while this window is the active one. Losing the focus normally ends it
+    /// through <see cref="OnDeactivate"/>, but a window brought forward or sent
+    /// back by another program does not always get that far — and a capture
+    /// left running would swallow what the user types in the other window,
+    /// then save it as their shortcut.
+    /// </returns>
+    private bool OnCapturedKey(int virtualKey, bool keyDown)
     {
         if (_capture is null)
         {
-            return;
+            return false;
+        }
+
+        if (ActiveForm != this)
+        {
+            StopCapture();
+            return false;
         }
 
         CaptureStep step = keyDown ? _capture.OnKeyDown(virtualKey) : _capture.OnKeyUp(virtualKey);
@@ -525,6 +539,8 @@ internal sealed class SettingsWindow : Form
                     : HotkeyText.Describe(step.Keys) + " …");
                 break;
         }
+
+        return true;
     }
 
     /// <summary>

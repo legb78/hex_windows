@@ -39,6 +39,16 @@ public class SettingTextTests
         Assert.NotNull(HotkeyText.Caveat(["Space"]));
     }
 
+    [Theory]
+    [InlineData("LeftCtrl", "RightAlt")]
+    [InlineData("RightAlt", "LeftCtrl")]
+    public void Left_ctrl_with_right_alt_is_named_as_altgr(string first, string second)
+    {
+        // What Windows sends for one press of AltGr on a French keyboard; the
+        // user pressed one key and must not be left wondering about two.
+        Assert.Contains("AltGr", HotkeyText.Caveat([first, second]));
+    }
+
     [Fact]
     public void A_chord_costs_no_key_for_typing_and_carries_no_warning()
     {

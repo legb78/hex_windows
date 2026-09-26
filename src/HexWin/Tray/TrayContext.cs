@@ -65,7 +65,10 @@ internal sealed class TrayContext : ApplicationContext
     /// </summary>
     private bool _pendingLiveApply;
 
-    public TrayContext(AppSettings settings, string modelPath)
+    /// <summary>Wakes the interface thread when a later launch asks for the settings.</summary>
+    private readonly RegisteredWaitHandle _showSettingsWait;
+
+    public TrayContext(AppSettings settings, string modelPath, EventWaitHandle showSettings)
     {
         _settings = settings;
         _log = SessionLog.Create(settings.LogEnabled);
@@ -106,7 +109,52 @@ internal sealed class TrayContext : ApplicationContext
         _hook.Install();
         _hookWatchdog.Start();
 
+        // The wait completes on a pool thread; the window belongs to this one.
+        _showSettingsWait = ThreadPool.RegisterWaitForSingleObject(
+            showSettings,
+            (_, _) => _uiThread.Post(_ => ShowSettingsWindow(), null),
+            null,
+            Timeout.Infinite,
+            executeOnlyOnce: false);
+
         _ = LoadEngineAsync();
+
+        // Posted rather than run here: the question is a modal dialog, and the
+        // tray icon should be up — and the message loop running — before it
+        // appears.
+        _uiThread.Post(_ => OfferDesktopShortcut(), null);
+    }
+
+    /// <summary>
+    /// Asks once, on the first start, whether to put HexWin on the desktop.
+    /// The answer is not asked again; the settings window can change it later.
+    /// </summary>
+    private void OfferDesktopShortcut()
+    {
+        if (DesktopShortcut.WasOffered)
+        {
+            return;
+        }
+
+        DesktopShortcut.MarkOffered();
+
+        if (DesktopShortcut.Exists)
+        {
+            return;
+        }
+
+        DialogResult answer = MessageBox.Show(
+            "Ajouter un raccourci HexWin sur le bureau ?\n\n"
+            + "Il démarre HexWin, ou ouvre ses paramètres quand HexWin tourne déjà. "
+            + "Vous pourrez le retirer dans Paramètres, page Général.",
+            "HexWin",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+
+        if (answer == DialogResult.Yes && !DesktopShortcut.SetEnabled(true))
+        {
+            ShowBalloon("Raccourci impossible", "Le raccourci n'a pas pu être créé sur le bureau.");
+        }
     }
 
     /// <summary>
@@ -408,6 +456,11 @@ internal sealed class TrayContext : ApplicationContext
     {
         if (_settingsWindow is { IsDisposed: false })
         {
+            if (_settingsWindow.WindowState == FormWindowState.Minimized)
+            {
+                _settingsWindow.WindowState = FormWindowState.Normal;
+            }
+
             _settingsWindow.Activate();
             return;
         }
@@ -415,6 +468,7 @@ internal sealed class TrayContext : ApplicationContext
         _settingsWindow = new SettingsWindow(
             _settings,
             AutoStart.IsEnabled,
+            DesktopShortcut.Exists,
             _hook,
             SaveSettings,
             OpenSettings,
@@ -451,6 +505,11 @@ internal sealed class TrayContext : ApplicationContext
         if (submission.AutoStart != AutoStart.IsEnabled)
         {
             AutoStart.SetEnabled(submission.AutoStart);
+        }
+
+        if (submission.DesktopShortcut != DesktopShortcut.Exists && !DesktopShortcut.SetEnabled(submission.DesktopShortcut))
+        {
+            _log.Write("le raccourci du bureau n'a pas pu être mis à jour");
         }
 
         _settings = next;
@@ -620,6 +679,7 @@ internal sealed class TrayContext : ApplicationContext
     {
         if (disposing)
         {
+            _showSettingsWait.Unregister(null);
             _settingsWindow?.Dispose();
             _hookWatchdog.Dispose();
             _hook.Dispose();

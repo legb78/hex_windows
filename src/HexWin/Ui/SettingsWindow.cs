@@ -11,7 +11,10 @@ namespace HexWin.Ui;
 /// <param name="AutoStart">
 /// Launch at sign-in. Lives in the registry, not in settings.json, hence apart.
 /// </param>
-internal sealed record SettingsSubmission(AppSettings Settings, bool AutoStart);
+/// <param name="DesktopShortcut">
+/// The shortcut on the desktop. A file on the desktop, not a setting, hence apart too.
+/// </param>
+internal sealed record SettingsSubmission(AppSettings Settings, bool AutoStart, bool DesktopShortcut);
 
 /// <summary>What became of a save, for the window to tell the user.</summary>
 /// <param name="AwaitingRestart">Keys saved, but only read when the application starts.</param>
@@ -74,6 +77,7 @@ internal sealed class SettingsWindow : Form
     private readonly LabeledSlider _unloadAfter;
 
     private readonly ToggleSwitch _autoStart;
+    private readonly ToggleSwitch _desktopShortcut;
     private readonly ToggleSwitch _logEnabled;
 
     /// <summary>Colour of the circle when it is fixed; kept while "auto" is chosen.</summary>
@@ -84,6 +88,7 @@ internal sealed class SettingsWindow : Form
     public SettingsWindow(
         AppSettings current,
         bool autoStart,
+        bool desktopShortcut,
         KeyboardHook hook,
         Func<SettingsSubmission, SaveOutcome> save,
         Action openSettingsFile,
@@ -238,6 +243,7 @@ internal sealed class SettingsWindow : Form
         // --- General ----------------------------------------------------------
 
         _autoStart = new ToggleSwitch(_theme) { Checked = autoStart };
+        _desktopShortcut = new ToggleSwitch(_theme) { Checked = desktopShortcut };
         _logEnabled = new ToggleSwitch(_theme) { Checked = _edited.LogEnabled };
 
         var openFile = new RoundButton(_theme, "settings.json");
@@ -253,7 +259,9 @@ internal sealed class SettingsWindow : Form
         Panel general = NewPage(
             "Général",
             Section("Démarrage"),
-            Card(new SettingRow(_theme, "Lancer au démarrage de Windows", "HexWin se place dans la zone de notification.", _autoStart)),
+            Card(
+                new SettingRow(_theme, "Lancer au démarrage de Windows", "HexWin se place dans la zone de notification.", _autoStart),
+                new SettingRow(_theme, "Raccourci sur le bureau", "Démarre HexWin, ou rouvre cette fenêtre.", _desktopShortcut)),
             Section("Diagnostic"),
             Card(
                 new SettingRow(_theme, "Journal des dictées", "Durée, niveau capté, caractères. Au prochain démarrage.", _logEnabled),
@@ -703,7 +711,7 @@ internal sealed class SettingsWindow : Form
         _edited.LogEnabled = _logEnabled.Checked;
         _edited.Normalize();
 
-        SaveOutcome outcome = _save(new SettingsSubmission(_edited, _autoStart.Checked));
+        SaveOutcome outcome = _save(new SettingsSubmission(_edited, _autoStart.Checked, _desktopShortcut.Checked));
         string? report = Describe(outcome);
 
         if (report is not null)

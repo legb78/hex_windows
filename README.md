@@ -60,6 +60,11 @@ unzip it, then in PowerShell:
 
 Nothing else to install — not even .NET, which is bundled inside the executable.
 
+On the first start, HexWin asks once whether to put a **shortcut on the
+desktop**. That shortcut starts HexWin; double-clicked while HexWin is already
+running, it opens the settings window instead. It can be added or removed later
+from the settings, page *Général*.
+
 > **Windows will warn you the first time.** The executable is not code-signed,
 > so SmartScreen shows "Windows protected your PC". Click **More info**, then
 > **Run anyway**. That is expected for an unsigned binary downloaded from the
@@ -106,7 +111,8 @@ own text; this is the same signal, where the eye already is. Both are set by
 Right-clicking the icon opens the **settings window**, the settings file and the
 log folder, and offers a **start with Windows** toggle. Worth enabling: the app
 does not come back on its own after a reboot otherwise. Double-clicking the icon
-opens the settings window directly.
+opens the settings window directly, and so does launching `HexWin.exe` — or its
+desktop shortcut — while HexWin is already running.
 
 The same menu carries the two cues as independent switches — **the circle during
 dictation** and **the tone at each end**. Both take effect on the next dictation,

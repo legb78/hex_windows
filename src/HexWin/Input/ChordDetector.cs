@@ -20,14 +20,14 @@ public enum ChordAction
 /// <param name="Swallow">
 /// When true, the event must not be passed on to Windows.
 /// </param>
-/// <param name="NeutralizeStartMenu">
+/// <param name="NeutralizeLoneModifier">
 /// When true, the caller must inject a neutral key to stop the Start menu from
-/// opening. See the note on press order.
+/// opening, or the menu bar from taking the focus. See the note on press order.
 /// </param>
 public readonly record struct ChordDecision(
     ChordAction Action,
     bool Swallow,
-    bool NeutralizeStartMenu = false)
+    bool NeutralizeLoneModifier = false)
 {
     public static readonly ChordDecision Ignore = new(ChordAction.None, Swallow: false);
 }
@@ -49,8 +49,11 @@ public readonly record struct ChordDecision(
 /// and released with no other key in between. Since the key that completes the
 /// shortcut is swallowed, Windows never sees that press — unless the user
 /// pressed Windows <i>first</i>, in which case the press has already been
-/// delivered. Hence <see cref="ChordDecision.NeutralizeStartMenu"/>, which then
-/// asks the caller to inject a key with no effect.</para>
+/// delivered. Hence <see cref="ChordDecision.NeutralizeLoneModifier"/>, which
+/// then asks the caller to inject a key with no effect. Alt has the same
+/// habit: tapped alone, it hands the focus to the menu bar of the active
+/// window, and the paste that follows lands in the menu instead of the
+/// text.</para>
 /// </summary>
 public sealed class ChordDetector
 {
@@ -62,6 +65,16 @@ public sealed class ChordDetector
 
     /// <summary>Code actually held that satisfies each slot, or 0.</summary>
     private readonly int[] _satisfiedBy;
+
+    /// <summary>
+    /// Keys that are never foreign, because the keyboard driver sends them
+    /// along with a key of the shortcut.
+    ///
+    /// AltGr is the one case: Windows has no code for it and reports it as
+    /// the right Alt preceded by a left Ctrl the user never pressed. Without
+    /// this, that Ctrl would cancel every dictation started with AltGr.
+    /// </summary>
+    private readonly int[] _transparent;
 
     /// <summary>Keys whose key-down we swallowed.</summary>
     private readonly HashSet<int> _swallowed = [];
@@ -92,6 +105,7 @@ public sealed class ChordDetector
         }
 
         _satisfiedBy = new int[_requirements.Length];
+        _transparent = RequiresRightAlt() ? [VirtualKeys.LeftControl] : [];
     }
 
     /// <summary>True between the moment the shortcut completes and its release.</summary>
@@ -111,6 +125,11 @@ public sealed class ChordDetector
 
         if (slot < 0)
         {
+            if (Array.IndexOf(_transparent, virtualKey) >= 0)
+            {
+                return ChordDecision.Ignore;
+            }
+
             // Key foreign to the shortcut. During a dictation it interrupts:
             // Ctrl+Win+D creates a virtual desktop, and the user was not
             // asking for a transcription.
@@ -144,7 +163,7 @@ public sealed class ChordDetector
         return new ChordDecision(
             ChordAction.Start,
             Swallow: true,
-            NeutralizeStartMenu: WindowsKeyAlreadyDelivered(virtualKey));
+            NeutralizeLoneModifier: LoneModifierAlreadyDelivered(virtualKey));
     }
 
     public ChordDecision OnKeyUp(int virtualKey)
@@ -198,6 +217,9 @@ public sealed class ChordDetector
             : ChordDecision.Ignore;
     }
 
+    private bool RequiresRightAlt() =>
+        _requirements.Any(codes => Array.IndexOf(codes, VirtualKeys.RightMenu) >= 0);
+
     private bool IsAlreadySatisfying(int virtualKey) =>
         Array.IndexOf(_satisfiedBy, virtualKey) >= 0;
 
@@ -222,9 +244,12 @@ public sealed class ChordDetector
     private bool NothingHeld() => Array.TrueForAll(_satisfiedBy, key => key == 0);
 
     /// <summary>
-    /// True when a Windows key of the shortcut was delivered to Windows before
-    /// the shortcut completed — that is, when the user pressed it first.
+    /// True when a Windows or Alt key of the shortcut was delivered to Windows
+    /// before the shortcut completed — that is, when the user pressed it first.
     /// </summary>
-    private bool WindowsKeyAlreadyDelivered(int completingKey) =>
-        _satisfiedBy.Any(key => key != 0 && key != completingKey && VirtualKeys.IsWindowsKey(key));
+    private bool LoneModifierAlreadyDelivered(int completingKey) =>
+        _satisfiedBy.Any(key => key != 0 && key != completingKey && OpensSomethingWhenTapped(key));
+
+    private static bool OpensSomethingWhenTapped(int virtualKey) =>
+        VirtualKeys.IsWindowsKey(virtualKey) || VirtualKeys.IsAltKey(virtualKey);
 }

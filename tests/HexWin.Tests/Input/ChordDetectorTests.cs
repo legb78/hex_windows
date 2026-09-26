@@ -20,6 +20,8 @@ public class ChordDetectorTests
 
     private static ChordDetector CtrlWin() => new(["Ctrl", "Win"]);
 
+    private static ChordDetector AltGrSpace() => new(["RightAlt", "Space"]);
+
     // --- Nominal triggering ----------------------------------------------------
 
     [Fact]
@@ -237,7 +239,7 @@ public class ChordDetectorTests
         Assert.False(detector.IsActive);
     }
 
-    // --- Start menu -------------------------------------------------------------
+    // --- Lone modifiers ---------------------------------------------------------
 
     [Fact]
     public void Pressing_Ctrl_then_Windows_needs_no_neutralisation()
@@ -247,7 +249,7 @@ public class ChordDetectorTests
         ChordDetector detector = CtrlWin();
         detector.OnKeyDown(Ctrl);
 
-        Assert.False(detector.OnKeyDown(Win).NeutralizeStartMenu);
+        Assert.False(detector.OnKeyDown(Win).NeutralizeLoneModifier);
     }
 
     [Fact]
@@ -260,16 +262,37 @@ public class ChordDetectorTests
         ChordDetector detector = CtrlWin();
         detector.OnKeyDown(Win);
 
-        Assert.True(detector.OnKeyDown(Ctrl).NeutralizeStartMenu);
+        Assert.True(detector.OnKeyDown(Ctrl).NeutralizeLoneModifier);
     }
 
     [Fact]
-    public void A_shortcut_without_a_Windows_key_never_needs_neutralisation()
+    public void A_shortcut_completed_by_Alt_needs_no_neutralisation()
     {
         var detector = new ChordDetector(["Ctrl", "Alt"]);
         detector.OnKeyDown(Ctrl);
 
-        Assert.False(detector.OnKeyDown(VirtualKeys.LeftMenu).NeutralizeStartMenu);
+        Assert.False(detector.OnKeyDown(VirtualKeys.LeftMenu).NeutralizeLoneModifier);
+    }
+
+    [Fact]
+    public void Pressing_AltGr_first_needs_a_neutralisation()
+    {
+        // Alt tapped alone hands the focus to the menu bar, and the paste then
+        // lands in the menu. AltGr pressed first has already been delivered.
+        ChordDetector detector = AltGrSpace();
+        detector.OnKeyDown(Ctrl);
+        detector.OnKeyDown(VirtualKeys.RightMenu);
+
+        Assert.True(detector.OnKeyDown(VirtualKeys.Space).NeutralizeLoneModifier);
+    }
+
+    [Fact]
+    public void A_shortcut_without_Windows_or_Alt_never_needs_neutralisation()
+    {
+        var detector = new ChordDetector(["Ctrl", "Space"]);
+        detector.OnKeyDown(Ctrl);
+
+        Assert.False(detector.OnKeyDown(VirtualKeys.Space).NeutralizeLoneModifier);
     }
 
     // --- Interruption -----------------------------------------------------------
@@ -288,6 +311,47 @@ public class ChordDetectorTests
 
         Assert.Equal(ChordAction.Cancel, decision.Action);
         Assert.False(detector.IsActive);
+    }
+
+    [Fact]
+    public void The_Ctrl_that_comes_with_AltGr_does_not_cancel()
+    {
+        // Windows has no code for AltGr: it reports the right Alt preceded by
+        // a left Ctrl the user never pressed, and repeats both while the key
+        // is held. That Ctrl must not read as a foreign key.
+        ChordDetector detector = AltGrSpace();
+        detector.OnKeyDown(Ctrl);
+        detector.OnKeyDown(VirtualKeys.RightMenu);
+
+        Assert.Equal(ChordAction.Start, detector.OnKeyDown(VirtualKeys.Space).Action);
+        Assert.Equal(ChordAction.None, detector.OnKeyDown(Ctrl).Action);
+        Assert.True(detector.IsActive);
+        Assert.Equal(ChordAction.None, detector.OnKeyUp(Ctrl).Action);
+        Assert.Equal(ChordAction.Stop, detector.OnKeyUp(VirtualKeys.RightMenu).Action);
+    }
+
+    [Fact]
+    public void The_Ctrl_that_comes_with_AltGr_is_never_swallowed()
+    {
+        // Swallowing must stay balanced: that Ctrl goes through on the way
+        // down, so it must go through on the way up as well.
+        ChordDetector detector = AltGrSpace();
+        detector.OnKeyDown(VirtualKeys.Space);
+
+        Assert.False(detector.OnKeyDown(Ctrl).Swallow);
+        Assert.Equal(ChordAction.Start, detector.OnKeyDown(VirtualKeys.RightMenu).Action);
+        Assert.False(detector.OnKeyDown(Ctrl).Swallow);
+        Assert.False(detector.OnKeyUp(Ctrl).Swallow);
+    }
+
+    [Fact]
+    public void Ctrl_stays_foreign_when_the_shortcut_has_no_right_Alt()
+    {
+        ChordDetector detector = new(["LeftAlt", "Space"]);
+        detector.OnKeyDown(VirtualKeys.LeftMenu);
+        detector.OnKeyDown(VirtualKeys.Space);
+
+        Assert.Equal(ChordAction.Cancel, detector.OnKeyDown(Ctrl).Action);
     }
 
     [Fact]

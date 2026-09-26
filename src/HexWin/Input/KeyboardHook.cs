@@ -180,7 +180,7 @@ internal sealed partial class KeyboardHook : IDisposable
             _ => ChordDecision.Ignore,
         };
 
-        if (decision.NeutralizeStartMenu)
+        if (decision.NeutralizeLoneModifier)
         {
             SendNeutralKey();
         }
@@ -206,13 +206,19 @@ internal sealed partial class KeyboardHook : IDisposable
     }
 
     /// <summary>
-    /// Neutralises a Windows key the system has already received.
+    /// Neutralises a Windows or Alt key the system has already received.
     ///
-    /// <para>Two distinct problems, settled by the same sequence.</para>
+    /// <para>Three distinct problems, settled by the same sequence.</para>
     ///
     /// <para><b>The Start menu.</b> Windows opens it on a Windows key pressed
     /// and released with no other key in between. F13 breaks that sequence: it
     /// exists on no keyboard sold today, and nothing is bound to it.</para>
+    ///
+    /// <para><b>The menu bar.</b> Alt tapped alone does the same to the active
+    /// window: its menu bar takes the focus, and the paste that follows goes
+    /// to the menu instead of the text — intermittently, depending on which
+    /// key the user let go of first. The same F13 breaks that sequence
+    /// too.</para>
     ///
     /// <para><b>The stuck modifier.</b> This one was expensive to diagnose.
     /// When the user presses Windows <i>before</i> the other key, the press has

@@ -72,6 +72,10 @@ public static class VirtualKeys
     public static bool IsWindowsKey(int virtualKey) =>
         virtualKey is LeftWindows or RightWindows;
 
+    /// <summary>True when the code is one of the two Alt keys.</summary>
+    public static bool IsAltKey(int virtualKey) =>
+        virtualKey is LeftMenu or RightMenu;
+
     /// <summary>
     /// True for the keys a real keyboard reports with the extended prefix.
     ///

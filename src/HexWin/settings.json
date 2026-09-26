@@ -18,7 +18,8 @@
   // F13 through F24.
   // Fn cannot be used: it is handled by the keyboard controller and emits no
   // code Windows can see.
-  "hotkey": ["LeftShift"],
+  // AltGr is RightAlt: Windows has no separate code for it.
+  "hotkey": ["RightAlt", "Space"],
 
   // Below this, the keypress is treated as accidental and ignored.
   "minRecordingMilliseconds": 250,

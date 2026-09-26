@@ -32,7 +32,9 @@
     "Push-to-talk dictation with a global hotkey",
     "Fully offline transcription on CPU",
     "Automatic language identification across 25 European languages",
-    "Inserts text into any application"
+    "Inserts text into any application",
+    "Optional sentence-by-sentence insertion for long dictations",
+    "Settings window, in English or French"
   ],
   "isAccessibleForFree": true,
   "sameAs": "https://github.com/legb78/hex_windows"
@@ -164,7 +166,21 @@
   <strong>2.29 s → 0.19 s</strong>.</p>
   <p>It is the same engine <a href="https://github.com/kitlangton/Hex">Hex</a> uses
   on macOS, and it recognises the spoken language on its own among
-  <strong>25 European languages</strong> — there is no language setting to get wrong.</p>
+  <strong>25 European languages</strong> — the language you dictate in is never a
+  setting to get wrong.</p>
+</section>
+
+<section>
+  <h2>A long dictation does not wait for the release</h2>
+  <p>By default the text arrives when you let go of the key. For long dictations,
+  turn on <strong>sentence by sentence</strong> in the settings: each pause in your
+  speech closes a piece, which is transcribed and inserted while you keep
+  talking.</p>
+  <p>The pause that counts is 700&nbsp;ms, adjustable from 100&nbsp;ms to 5&nbsp;s.
+  A dictation cancelled halfway keeps the sentences already inserted.</p>
+  <p class="muted">The pause is read on the sound level. In a noisy room none is
+  seen, and the text simply arrives at release, as it would with the option
+  off.</p>
 </section>
 
 <section>
@@ -195,6 +211,9 @@
   <p>Nothing else to install — <strong>not even .NET</strong>, which is bundled
   inside the executable. A tray icon shows the state: grey while the model loads,
   blue when ready, red while recording, orange while transcribing.</p>
+  <p>There is no installer either. On the first start, HexWin asks once whether to
+  put a shortcut on the desktop: it starts HexWin, or opens its settings when
+  HexWin is already running.</p>
 </section>
 
 <section>
@@ -208,9 +227,33 @@
   a dictation was aimed at. An orange circle also answers a question nothing used to:
   a hotkey pressed while a transcription is still running is refused by design, and
   now you can see why.</p>
-  <p>Either cue can be turned off on its own, from the tray menu, with no restart.
-  The choice is written back to <code>feedback</code> in <code>settings.json</code>.
-  The circle&rsquo;s colour, size, opacity and position are settings too.</p>
+  <p>Either cue can be turned off on its own, from the tray menu or the settings
+  window, with no restart. The choice is written back to <code>feedback</code> in
+  <code>settings.json</code>. The circle&rsquo;s colour, size, opacity and position
+  are settings too.</p>
+</section>
+
+<section>
+  <h2>Settings, without opening a file</h2>
+  <p>Double-click the tray icon, or right-click it and pick the first entry, or
+  launch HexWin again while it runs: the settings window opens, in four pages
+  &mdash; dictation, cues, engine, general. It follows the Windows light or dark
+  theme, and takes the Windows&nbsp;11 frame where the system offers it.</p>
+  <ul>
+    <li><strong>The hotkey is captured, not typed.</strong> Hold the keys you want,
+    release. The window names the side of each key, and warns when a single key
+    costs you something for typing.</li>
+    <li><strong>Saving rewrites only what changed</strong>, so the comments in
+    <code>settings.json</code> survive. A setting missing from an older file is
+    added.</li>
+    <li><strong>What can change on the fly does.</strong> The hotkey, the insertion
+    mode, sentence by sentence, the circle and the tone apply on the next dictation.
+    The engine, the recording durations and the log wait for a restart, and the
+    window says so.</li>
+    <li><strong>French or English</strong>, following Windows unless told otherwise.
+    That is the language of HexWin&rsquo;s own windows and menus; the language you
+    dictate in is still Parakeet&rsquo;s to work out.</li>
+  </ul>
 </section>
 
 <section>
@@ -225,6 +268,9 @@
     work from any window.</li>
     <li><strong>It cannot type into elevated windows</strong> unless it is elevated
     too. That is Windows UIPI isolation doing its job, not a bug.</li>
+    <li><strong>The right Shift stops being a Shift</strong> while HexWin runs: it is
+    the hotkey, and the hook keeps it. The left one still types capitals, and the
+    settings window can move the hotkey elsewhere.</li>
   </ul>
 </section>
 

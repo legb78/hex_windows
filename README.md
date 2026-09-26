@@ -103,20 +103,41 @@ recording. The tray is the wrong place to look while you are watching your
 own text; this is the same signal, where the eye already is. Both are set by
 `feedback` below, and either can be turned off on its own.
 
-Right-clicking the icon opens the settings file and the log folder, and offers a
-**start with Windows** toggle. Worth enabling: the app does not come back on its
-own after a reboot otherwise.
+Right-clicking the icon opens the **settings window**, the settings file and the
+log folder, and offers a **start with Windows** toggle. Worth enabling: the app
+does not come back on its own after a reboot otherwise. Double-clicking the icon
+opens the settings window directly.
 
 The same menu carries the two cues as independent switches — **the circle during
 dictation** and **the tone at each end**. Both take effect on the next dictation,
 with no restart, and are written back to `settings.json` as the `feedback` value
-below. Everything else still goes through the file.
+below.
+
+### The settings window
+
+Every setting below, in four pages — dictation, cues, engine, general — without
+having to know a single key name. It follows the Windows light or dark theme,
+and takes the Windows 11 frame (round corners, Mica title bar) where the system
+offers it.
+
+- **The hotkey is captured, not typed**: click *Modifier*, hold the keys you
+  want, release. The window names the side of each key — *Maj droite*, not just
+  *Maj* — and warns when a single key costs you something for typing. While it
+  listens, the whole keyboard goes to the capture; Escape or a click elsewhere
+  hands it back.
+- **Save writes only what changed**, one line per setting, so the comments in
+  `settings.json` survive. A setting missing from an older file is added.
+- **What can change on the fly does**: the hotkey, the insertion mode, the circle
+  and the tones apply on the next dictation. The engine settings, the recording
+  durations and the log are read at startup; the window says which ones wait for
+  a restart.
+- **Cancel changes nothing**, in the file or in the running app.
 
 ## Settings
 
-Everything lives in `settings.json`, next to the executable. Comments are
-allowed, and **an invalid value falls back to its default** rather than
-preventing startup.
+Everything lives in `settings.json`, next to the executable. The settings window
+edits it for you; editing it by hand still works. Comments are allowed, and **an
+invalid value falls back to its default** rather than preventing startup.
 
 | Setting | What it does |
 |---------|--------------|
@@ -172,8 +193,11 @@ engine understood you, and whether the text made it out.
 - **The right `Shift` no longer shifts** while HexWin runs: the hook swallows the
   key, so Windows never sees it. Use the left one for capitals. It behaves
   normally again once HexWin is stopped, and briefly while the watchdog
-  reinstalls the hook after a long silence. Pick another key in `settings.json`
-  to get it back.
+  reinstalls the hook after a long silence. Pick another key in the settings
+  window to get it back.
+- **AltGr is captured as two keys** on layouts that have it, French included:
+  Windows sends a left `Ctrl` along with the right `Alt`, and the capture records
+  both. Pick another key, or edit `hotkey` by hand to `["RightAlt"]`.
 - **Elevated windows**: a non-elevated app cannot send keystrokes to a window
   running as administrator (Windows UIPI isolation). Run HexWin elevated if you
   need to dictate into one.

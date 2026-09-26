@@ -81,10 +81,14 @@ public class SettingsDiffTests
     [InlineData("feedback")]
     [InlineData("feedbackColor")]
     [InlineData("feedbackOpacity")]
+    [InlineData("pauseMilliseconds")]
+    [InlineData("segmentation")]
     public void Settings_applied_on_the_fly_are_not_flagged(string key)
     {
         var after = new AppSettings
         {
+            Segmentation = true,
+            PauseMilliseconds = 0,
             Hotkey = ["F13"],
             Insertion = InsertionMode.Type,
             Feedback = FeedbackMode.None,

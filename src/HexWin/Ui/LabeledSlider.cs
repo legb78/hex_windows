@@ -11,10 +11,12 @@ internal sealed class LabeledSlider : Panel
 {
     private readonly Label _value;
     private readonly Func<int, string> _format;
+    private readonly Theme _theme;
 
     public LabeledSlider(Theme theme, int minimum, int maximum, int step, int value, Func<int, string> format)
     {
         _format = format;
+        _theme = theme;
         BackColor = theme.Card;
         Size = new Size(Dpi.S(216), Dpi.S(28));
 
@@ -45,6 +47,16 @@ internal sealed class LabeledSlider : Panel
     public Slider Slider { get; }
 
     public int Value => Slider.Value;
+
+    /// <summary>
+    /// Greys the slider out without disabling its value label, which Windows
+    /// Forms would draw etched, in a colour that ignores the theme.
+    /// </summary>
+    public void SetActive(bool active)
+    {
+        Slider.Enabled = active;
+        _value.ForeColor = active ? _theme.SecondaryText : _theme.ControlBorder;
+    }
 
     private void Show(int value)
     {

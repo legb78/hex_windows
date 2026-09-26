@@ -93,6 +93,13 @@ public class SettingTextTests
     }
 
     [Fact]
+    public void A_pause_of_zero_says_the_cutting_is_off()
+    {
+        Assert.Equal("Désactivée", SettingText.Pause(0));
+        Assert.Equal("700 ms", SettingText.Pause(700));
+    }
+
+    [Fact]
     public void One_thread_is_singular()
     {
         Assert.Equal("1 fil", SettingText.Threads(1));

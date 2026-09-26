@@ -41,7 +41,14 @@ internal sealed class SettingsWindow : Form
     private static readonly int ContentWidth = Dpi.S(570);
     private static readonly int FooterHeight = Dpi.S(64);
     private static readonly int PageMargin = Dpi.S(24);
-    private static readonly int WindowHeight = Dpi.S(580);
+    private static readonly int WindowHeight = Dpi.S(640);
+
+    /// <summary>
+    /// The shortest pause the window offers. Zero also turns the cutting off in
+    /// the file, but the switch does that here; a slider reaching zero would be
+    /// a second, unlabelled off switch.
+    /// </summary>
+    private const int MinimumPause = 100;
 
     private const string DefaultHotkeyHint = "Maintenir pour dicter, relâcher pour insérer.";
 
@@ -62,6 +69,8 @@ internal sealed class SettingsWindow : Form
     private readonly SettingRow _hotkeyRow;
     private readonly LabeledSlider _minRecording;
     private readonly LabeledSlider _maxRecording;
+    private readonly LabeledSlider _pause;
+    private readonly ToggleSwitch _segmentation;
     private readonly SegmentedControl _insertion;
 
     private readonly ToggleSwitch _showCircle;
@@ -150,6 +159,22 @@ internal sealed class SettingsWindow : Form
         _maxRecording = new LabeledSlider(
             _theme, AppSettings.MaxRecordingSecondsFloor, AppSettings.MaxRecordingSecondsCeiling, 5, _edited.MaxRecordingSeconds, SettingText.Seconds);
 
+        // A pause of zero in the file is the cutting turned off: it shows as the
+        // switch off, with the slider on the default duration, ready for the
+        // day the switch goes on.
+        _segmentation = new ToggleSwitch(_theme) { Checked = _edited.Segmentation && _edited.PauseMilliseconds > 0 };
+
+        _pause = new LabeledSlider(
+            _theme,
+            MinimumPause,
+            AppSettings.MaxPauseMilliseconds,
+            50,
+            _edited.PauseMilliseconds > 0 ? _edited.PauseMilliseconds : new AppSettings().PauseMilliseconds,
+            SettingText.Pause);
+
+        _pause.SetActive(_segmentation.Checked);
+        _segmentation.CheckedChanged += (_, _) => _pause.SetActive(_segmentation.Checked);
+
         _insertion = new SegmentedControl(_theme, "Coller", "Taper")
         {
             SelectedIndex = _edited.Insertion == InsertionMode.Type ? 1 : 0,
@@ -164,7 +189,10 @@ internal sealed class SettingsWindow : Form
                 new SettingRow(_theme, "Durée minimale", "Plus bref, l'appui est ignoré.", _minRecording),
                 new SettingRow(_theme, "Durée maximale", "Au-delà, l'enregistrement s'arrête.", _maxRecording)),
             Section("Insertion"),
-            Card(new SettingRow(_theme, "Insertion du texte", "Coller est instantané ; Taper passe partout.", _insertion)));
+            Card(
+                new SettingRow(_theme, "Insertion du texte", "Coller est instantané ; Taper passe partout.", _insertion),
+                new SettingRow(_theme, "Insérer phrase par phrase", "Sans attendre le relâchement, à chaque pause.", _segmentation),
+                new SettingRow(_theme, "Pause qui coupe une phrase", "Plus courte : plus tôt, au risque de couper.", _pause)));
 
         // --- Feedback ---------------------------------------------------------
 
@@ -691,6 +719,8 @@ internal sealed class SettingsWindow : Form
 
         _edited.MinRecordingMilliseconds = _minRecording.Value;
         _edited.MaxRecordingSeconds = _maxRecording.Value;
+        _edited.Segmentation = _segmentation.Checked;
+        _edited.PauseMilliseconds = _pause.Value;
         _edited.Insertion = _insertion.SelectedIndex == 1 ? InsertionMode.Type : InsertionMode.Paste;
 
         _edited.Feedback = new FeedbackPolicy(FeedbackMode.None)

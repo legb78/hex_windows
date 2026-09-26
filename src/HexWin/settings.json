@@ -26,6 +26,20 @@
   // Stops recording if the key stays held down.
   "maxRecordingSeconds": 120,
 
+  // Sentence by sentence. With true, a pause in your speech closes a piece of
+  // the dictation, which is transcribed and inserted while you keep talking:
+  // on a long dictation the text lands sentence by sentence instead of all at
+  // once at the end. With false, everything arrives at release.
+  "segmentation": false,
+
+  // The pause that closes a piece, when "segmentation" is true. Kept while it
+  // is false, so turning it back on finds the same duration.
+  //
+  // The pause is detected on the sound level, with the same threshold that
+  // tells a muted microphone from a quiet room. In a noisy place no pause is
+  // ever seen and the text simply arrives at release.
+  "pauseMilliseconds": 700,
+
   // Minutes without dictating after which the model is freed from memory.
   // Set 0 to keep it resident indefinitely.
   //

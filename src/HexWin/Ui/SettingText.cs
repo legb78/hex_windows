@@ -18,6 +18,8 @@ public static class SettingText
         ["hotkey"] = "Raccourci",
         ["minRecordingMilliseconds"] = "Durée minimale",
         ["maxRecordingSeconds"] = "Durée maximale",
+        ["segmentation"] = "Insérer phrase par phrase",
+        ["pauseMilliseconds"] = "Pause qui coupe une phrase",
         ["unloadAfterMinutes"] = "Libérer la mémoire après",
         ["provider"] = "Processeur de calcul",
         ["threads"] = "Fils de calcul",
@@ -70,6 +72,12 @@ public static class SettingText
 
         return minutes == 0 ? $"{hours} h" : $"{hours} h {minutes:00}";
     }
+
+    /// <summary>
+    /// The pause that closes a sentence. Zero turns the cutting off, and the
+    /// text has to say that, not "0 ms", which reads as a pause of no length.
+    /// </summary>
+    public static string Pause(int value) => value == 0 ? "Désactivée" : Milliseconds(value);
 
     public static string Pixels(int value) => $"{value} px";
 

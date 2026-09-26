@@ -162,12 +162,16 @@ internal sealed class Slider : Control
         float thickness = Math.Max(3f, Height / 6f);
         float thumb = ThumbCentre;
 
+        // Disabled, the accent goes: the value stays readable, but nothing
+        // about the slider invites a drag that would not be taken.
+        Color accentColor = Enabled ? _theme.Accent : _theme.SecondaryText;
+
         using (var rest = new Pen(_theme.ControlBorder, thickness) { StartCap = LineCap.Round, EndCap = LineCap.Round })
         {
             graphics.DrawLine(rest, TrackLeft, centreY, TrackRight, centreY);
         }
 
-        using (var filled = new Pen(_theme.Accent, thickness) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+        using (var filled = new Pen(accentColor, thickness) { StartCap = LineCap.Round, EndCap = LineCap.Round })
         {
             graphics.DrawLine(filled, TrackLeft, centreY, Math.Max(TrackLeft + 0.1f, thumb), centreY);
         }
@@ -186,9 +190,15 @@ internal sealed class Slider : Control
         // the keyboard user can see which slider the arrows will move.
         float dot = diameter * (Focused ? 0.55f : 0.42f);
 
-        using (var accent = new SolidBrush(_theme.Accent))
+        using (var accent = new SolidBrush(accentColor))
         {
             graphics.FillEllipse(accent, thumb - (dot / 2f), centreY - (dot / 2f), dot, dot);
         }
+    }
+
+    protected override void OnEnabledChanged(EventArgs e)
+    {
+        Invalidate();
+        base.OnEnabledChanged(e);
     }
 }

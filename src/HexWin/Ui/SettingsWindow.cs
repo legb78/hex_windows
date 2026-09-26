@@ -50,9 +50,8 @@ internal sealed class SettingsWindow : Form
     /// </summary>
     private const int MinimumPause = 100;
 
-    private const string DefaultHotkeyHint = "Maintenir pour dicter, relâcher pour insérer.";
-
     private readonly Theme _theme = Theme.Current;
+    private readonly UiStrings _text = UiStrings.Current;
     private readonly AppSettings _edited;
     private readonly KeyboardHook _hook;
     private readonly Func<SettingsSubmission, SaveOutcome> _save;
@@ -87,7 +86,11 @@ internal sealed class SettingsWindow : Form
 
     private readonly ToggleSwitch _autoStart;
     private readonly ToggleSwitch _desktopShortcut;
+    private readonly SegmentedControl _language;
     private readonly ToggleSwitch _logEnabled;
+
+    /// <summary>The <c>language</c> values, in the order the segmented control shows them.</summary>
+    private static readonly string[] LanguageValues = ["auto", "fr", "en"];
 
     /// <summary>Colour of the circle when it is fixed; kept while "auto" is chosen.</summary>
     private Color _fixedColor;
@@ -116,7 +119,7 @@ internal sealed class SettingsWindow : Form
 
         // Scaled by hand through Dpi: see there for why not by Windows Forms.
         AutoScaleMode = AutoScaleMode.None;
-        Text = "Paramètres de HexWin";
+        Text = _text.WindowTitle;
         Icon = _icon;
         Font = Theme.Body;
         BackColor = _theme.Window;
@@ -143,18 +146,18 @@ internal sealed class SettingsWindow : Form
             Bounds = new Rectangle(0, 0, Dpi.S(170), Dpi.S(32)),
         };
 
-        _hotkeyButton = new RoundButton(_theme, "Modifier") { Location = new Point(Dpi.S(178), 0) };
+        _hotkeyButton = new RoundButton(_theme, _text.Change) { Location = new Point(Dpi.S(178), 0) };
         _hotkeyButton.Click += (_, _) => ToggleCapture();
 
         _hotkeyEditor = new Panel { BackColor = _theme.Card, Size = new Size(Dpi.S(178) + _hotkeyButton.Width, Dpi.S(32)) };
         _hotkeyEditor.Controls.Add(_hotkeyLabel);
         _hotkeyEditor.Controls.Add(_hotkeyButton);
 
-        _hotkeyRow = new SettingRow(_theme, "Raccourci de dictée", DefaultHotkeyHint, _hotkeyEditor);
-        _hotkeyButton.AccessibleName = "Modifier le raccourci de dictée";
+        _hotkeyRow = new SettingRow(_theme, _text.HotkeyTitle, _text.HotkeyHint, _hotkeyEditor);
+        _hotkeyButton.AccessibleName = _text.ChangeHotkeyName;
 
         _minRecording = new LabeledSlider(
-            _theme, 0, AppSettings.MinRecordingMillisecondsCeiling, 50, _edited.MinRecordingMilliseconds, SettingText.Milliseconds);
+            _theme, 0, AppSettings.MinRecordingMillisecondsCeiling, 50, _edited.MinRecordingMilliseconds, value => SettingText.Milliseconds(_text, value));
 
         _maxRecording = new LabeledSlider(
             _theme, AppSettings.MaxRecordingSecondsFloor, AppSettings.MaxRecordingSecondsCeiling, 5, _edited.MaxRecordingSeconds, SettingText.Seconds);
@@ -170,29 +173,29 @@ internal sealed class SettingsWindow : Form
             AppSettings.MaxPauseMilliseconds,
             50,
             _edited.PauseMilliseconds > 0 ? _edited.PauseMilliseconds : new AppSettings().PauseMilliseconds,
-            SettingText.Pause);
+            value => SettingText.Pause(_text, value));
 
         _pause.SetActive(_segmentation.Checked);
         _segmentation.CheckedChanged += (_, _) => _pause.SetActive(_segmentation.Checked);
 
-        _insertion = new SegmentedControl(_theme, "Coller", "Taper")
+        _insertion = new SegmentedControl(_theme, _text.InsertPaste, _text.InsertType)
         {
             SelectedIndex = _edited.Insertion == InsertionMode.Type ? 1 : 0,
         };
 
         Panel dictation = NewPage(
-            "Dictée",
-            Section("Raccourci"),
+            _text.PageDictation,
+            Section(_text.SectionHotkey),
             Card(_hotkeyRow),
-            Section("Enregistrement"),
+            Section(_text.SectionRecording),
             Card(
-                new SettingRow(_theme, "Durée minimale", "Plus bref, l'appui est ignoré.", _minRecording),
-                new SettingRow(_theme, "Durée maximale", "Au-delà, l'enregistrement s'arrête.", _maxRecording)),
-            Section("Insertion"),
+                new SettingRow(_theme, _text.MinimumLengthTitle, _text.MinimumLengthHint, _minRecording),
+                new SettingRow(_theme, _text.MaximumLengthTitle, _text.MaximumLengthHint, _maxRecording)),
+            Section(_text.SectionInsertion),
             Card(
-                new SettingRow(_theme, "Insertion du texte", "Coller est instantané ; Taper passe partout.", _insertion),
-                new SettingRow(_theme, "Insérer phrase par phrase", "Sans attendre le relâchement, à chaque pause.", _segmentation),
-                new SettingRow(_theme, "Pause qui coupe une phrase", "Plus courte : plus tôt, au risque de couper.", _pause)));
+                new SettingRow(_theme, _text.InsertionTitle, _text.InsertionHint, _insertion),
+                new SettingRow(_theme, _text.SegmentationTitle, _text.SegmentationHint, _segmentation),
+                new SettingRow(_theme, _text.PauseTitle, _text.PauseHint, _pause)));
 
         // --- Feedback ---------------------------------------------------------
 
@@ -201,7 +204,7 @@ internal sealed class SettingsWindow : Form
         _showCircle = new ToggleSwitch(_theme) { Checked = feedback.ShowsCircle };
         _playTone = new ToggleSwitch(_theme) { Checked = feedback.PlaysTone };
 
-        _colorMode = new SegmentedControl(_theme, "Selon l'état", "Fixe")
+        _colorMode = new SegmentedControl(_theme, _text.ColorByState, _text.ColorFixed)
         {
             Size = new Size(Dpi.S(170), Dpi.S(30)),
             SelectedIndex = HexColor.TryParse(_edited.FeedbackColor, out _) ? 1 : 0,
@@ -213,7 +216,7 @@ internal sealed class SettingsWindow : Form
             Size = new Size(Dpi.S(44), Dpi.S(30)),
             Location = new Point(Dpi.S(178), 0),
             Cursor = Cursors.Hand,
-            AccessibleName = "Choisir la couleur du cercle",
+            AccessibleName = _text.PickColorName,
         };
         _colorSwatch.FlatAppearance.BorderColor = _theme.ControlBorder;
         _colorSwatch.Click += (_, _) => PickColor();
@@ -228,56 +231,63 @@ internal sealed class SettingsWindow : Form
             _theme, AppSettings.MinFeedbackSize, AppSettings.MaxFeedbackSize, 4, _edited.FeedbackSize, SettingText.Pixels);
 
         _circleOpacity = new LabeledSlider(
-            _theme, AppSettings.MinFeedbackOpacity, 255, 5, _edited.FeedbackOpacity, SettingText.Opacity);
+            _theme, AppSettings.MinFeedbackOpacity, 255, 5, _edited.FeedbackOpacity, value => SettingText.Opacity(_text, value));
 
         _circleMargin = new LabeledSlider(
             _theme, 0, AppSettings.MaxFeedbackTopMargin, 10, _edited.FeedbackTopMargin, SettingText.Pixels);
 
         Panel cues = NewPage(
-            "Retour visuel et sonore",
-            Section("Pendant la dictée"),
+            _text.PageCues,
+            Section(_text.SectionWhileDictating),
             Card(
-                new SettingRow(_theme, "Cercle à l'écran", "Rouge à l'enregistrement, orange à la transcription.", _showCircle),
-                new SettingRow(_theme, "Son au début et à la fin", "Un bip bref à l'ouverture et à la fermeture du micro.", _playTone)),
-            Section("Apparence du cercle"),
+                new SettingRow(_theme, _text.CircleTitle, _text.CircleHint, _showCircle),
+                new SettingRow(_theme, _text.ToneTitle, _text.ToneHint, _playTone)),
+            Section(_text.SectionCircle),
             Card(
-                new SettingRow(_theme, "Couleur", "Selon l'état, ou une seule couleur.", colorEditor),
-                new SettingRow(_theme, "Taille", null, _circleSize),
-                new SettingRow(_theme, "Opacité", null, _circleOpacity),
-                new SettingRow(_theme, "Marge en haut de l'écran", null, _circleMargin)));
+                new SettingRow(_theme, _text.ColorTitle, _text.ColorHint, colorEditor),
+                new SettingRow(_theme, _text.SizeTitle, null, _circleSize),
+                new SettingRow(_theme, _text.OpacityTitle, null, _circleOpacity),
+                new SettingRow(_theme, _text.TopMarginTitle, null, _circleMargin)));
 
         // --- Engine -----------------------------------------------------------
 
-        var browse = new RoundButton(_theme, "Parcourir…");
+        var browse = new RoundButton(_theme, _text.Browse);
         browse.Click += (_, _) => PickModel();
-        _modelRow = new SettingRow(_theme, "Dossier du modèle", DescribeModel(), browse);
-        browse.AccessibleName = "Choisir le dossier du modèle";
+        _modelRow = new SettingRow(_theme, _text.ModelTitle, DescribeModel(), browse);
+        browse.AccessibleName = _text.BrowseModelName;
 
-        _threads = new LabeledSlider(_theme, 1, AppSettings.MaxThreads, 1, _edited.Threads, SettingText.Threads);
+        _threads = new LabeledSlider(_theme, 1, AppSettings.MaxThreads, 1, _edited.Threads, value => SettingText.Threads(_text, value));
 
         _unloadAfter = new LabeledSlider(
-            _theme, 0, AppSettings.MaxUnloadAfterMinutes, 5, _edited.UnloadAfterMinutes, SettingText.IdleMinutes);
+            _theme, 0, AppSettings.MaxUnloadAfterMinutes, 5, _edited.UnloadAfterMinutes, value => SettingText.IdleMinutes(_text, value));
 
         Panel engine = NewPage(
-            "Moteur",
-            Note("Ces réglages prennent effet au prochain démarrage de HexWin."),
-            Section("Modèle"),
+            _text.PageEngine,
+            Note(_text.EngineNote),
+            Section(_text.SectionModel),
             Card(_modelRow),
-            Section("Performances"),
+            Section(_text.SectionPerformance),
             Card(
-                new SettingRow(_theme, "Fils de calcul", "Au-delà de quelques-uns, le gain s'effondre.", _threads),
-                new SettingRow(_theme, "Libérer la mémoire après", "Le modèle occupe environ 1 Go.", _unloadAfter)));
+                new SettingRow(_theme, _text.ThreadsTitle, _text.ThreadsHint, _threads),
+                new SettingRow(_theme, _text.UnloadTitle, _text.UnloadHint, _unloadAfter)));
 
         // --- General ----------------------------------------------------------
 
         _autoStart = new ToggleSwitch(_theme) { Checked = autoStart };
         _desktopShortcut = new ToggleSwitch(_theme) { Checked = desktopShortcut };
+
+        // Each language named in itself, as every language picker does: someone
+        // who cannot read the current one must still find their own.
+        _language = new SegmentedControl(_theme, _text.LanguageAuto, "Français", "English")
+        {
+            SelectedIndex = Math.Max(0, Array.IndexOf(LanguageValues, _edited.Language)),
+        };
         _logEnabled = new ToggleSwitch(_theme) { Checked = _edited.LogEnabled };
 
         var openFile = new RoundButton(_theme, "settings.json");
         openFile.Click += (_, _) => openSettingsFile();
 
-        var openLogs = new RoundButton(_theme, "Journaux") { Location = new Point(openFile.Width + Dpi.S(8), 0) };
+        var openLogs = new RoundButton(_theme, _text.Logs) { Location = new Point(openFile.Width + Dpi.S(8), 0) };
         openLogs.Click += (_, _) => openLogFolder();
 
         var files = new Panel { BackColor = _theme.Card, Size = new Size(openFile.Width + Dpi.S(8) + openLogs.Width, Dpi.S(32)) };
@@ -285,15 +295,17 @@ internal sealed class SettingsWindow : Form
         files.Controls.Add(openLogs);
 
         Panel general = NewPage(
-            "Général",
-            Section("Démarrage"),
+            _text.PageGeneral,
+            Section(_text.SectionStartup),
             Card(
-                new SettingRow(_theme, "Lancer au démarrage de Windows", "HexWin se place dans la zone de notification.", _autoStart),
-                new SettingRow(_theme, "Raccourci sur le bureau", "Démarre HexWin, ou rouvre cette fenêtre.", _desktopShortcut)),
-            Section("Diagnostic"),
+                new SettingRow(_theme, _text.AutoStartTitle, _text.AutoStartHint, _autoStart),
+                new SettingRow(_theme, _text.DesktopShortcutTitle, _text.DesktopShortcutHint, _desktopShortcut)),
+            Section(_text.SectionDisplay),
+            Card(new SettingRow(_theme, _text.LanguageTitle, _text.LanguageHint, _language)),
+            Section(_text.SectionDiagnostics),
             Card(
-                new SettingRow(_theme, "Journal des dictées", "Durée, niveau capté, caractères. Au prochain démarrage.", _logEnabled),
-                new SettingRow(_theme, "Ouvrir", "Pour les réglages avancés ou un diagnostic.", files)));
+                new SettingRow(_theme, _text.LogTitle, _text.LogHint, _logEnabled),
+                new SettingRow(_theme, _text.OpenTitle, _text.OpenHint, files)));
 
         // --- Frame ------------------------------------------------------------
 
@@ -309,7 +321,7 @@ internal sealed class SettingsWindow : Form
         }
 
         Controls.Add(_content);
-        Controls.Add(BuildSidebar(("Dictée", dictation), ("Retour", cues), ("Moteur", engine), ("Général", general)));
+        Controls.Add(BuildSidebar((_text.NavDictation, dictation), (_text.NavCues, cues), (_text.NavEngine, engine), (_text.NavGeneral, general)));
         Controls.Add(BuildFooter());
 
         RefreshHotkey();
@@ -429,7 +441,7 @@ internal sealed class SettingsWindow : Form
 
         var about = new Label
         {
-            Text = $"Version {version}\nDictée locale, rien ne sort de votre machine.",
+            Text = _text.About(version),
             Font = Theme.Caption,
             ForeColor = _theme.SecondaryText,
             BackColor = _theme.Window,
@@ -449,8 +461,8 @@ internal sealed class SettingsWindow : Form
             BackColor = _theme.Window,
         };
 
-        var save = new RoundButton(_theme, "Enregistrer", primary: true) { BackColor = _theme.Window };
-        var cancel = new RoundButton(_theme, "Annuler") { BackColor = _theme.Window };
+        var save = new RoundButton(_theme, _text.Save, primary: true) { BackColor = _theme.Window };
+        var cancel = new RoundButton(_theme, _text.Cancel) { BackColor = _theme.Window };
 
         save.Location = new Point(ContentWidth - PageMargin - save.Width, (FooterHeight - save.Height) / 2);
         cancel.Location = new Point(save.Left - Dpi.S(8) - cancel.Width, save.Top);
@@ -504,10 +516,10 @@ internal sealed class SettingsWindow : Form
     private void StartCapture()
     {
         _capture = new HotkeyCapture();
-        ShowHotkeyText("Appuyez sur les touches…");
+        ShowHotkeyText(_text.CapturePrompt);
         _hotkeyLabel.ForeColor = _theme.Accent;
-        _hotkeyButton.Text = "Annuler";
-        _hotkeyRow.SetDescription("Maintenez-les, puis relâchez. Échap pour annuler.");
+        _hotkeyButton.Text = _text.Cancel;
+        _hotkeyRow.SetDescription(_text.CaptureHint);
 
         _hook.BeginCapture(OnCapturedKey);
     }
@@ -521,7 +533,7 @@ internal sealed class SettingsWindow : Form
 
         _capture = null;
         _hook.EndCapture();
-        _hotkeyButton.Text = "Modifier";
+        _hotkeyButton.Text = _text.Change;
         RefreshHotkey();
     }
 
@@ -564,15 +576,15 @@ internal sealed class SettingsWindow : Form
                 break;
 
             case CaptureState.Unsupported:
-                ShowHotkeyText("Appuyez sur les touches…");
-                _hotkeyRow.SetDescription("Touche refusée : Maj, Ctrl, Alt, Windows, Verr. Maj, Espace ou F13 à F24.");
+                ShowHotkeyText(_text.CapturePrompt);
+                _hotkeyRow.SetDescription(_text.CaptureRefused);
                 break;
 
             case CaptureState.Listening:
             default:
                 ShowHotkeyText(step.Keys.Count == 0
-                    ? "Appuyez sur les touches…"
-                    : HotkeyText.Describe(step.Keys) + " …");
+                    ? _text.CapturePrompt
+                    : _text.Holding(HotkeyText.Describe(_text, step.Keys)));
                 break;
         }
 
@@ -601,9 +613,9 @@ internal sealed class SettingsWindow : Form
 
     private void RefreshHotkey()
     {
-        ShowHotkeyText(HotkeyText.Describe(_edited.Hotkey));
+        ShowHotkeyText(HotkeyText.Describe(_text, _edited.Hotkey));
         _hotkeyLabel.ForeColor = _theme.Text;
-        _hotkeyRow.SetDescription(HotkeyText.Caveat(_edited.Hotkey) ?? DefaultHotkeyHint);
+        _hotkeyRow.SetDescription(HotkeyText.Caveat(_text, _edited.Hotkey) ?? _text.HotkeyHint);
     }
 
     protected override void OnDeactivate(EventArgs e)
@@ -653,7 +665,7 @@ internal sealed class SettingsWindow : Form
     private string DescribeModel() =>
         ModelLocator.Resolve(_edited.ModelPath, AppContext.BaseDirectory) is { } found
             ? Path.GetFileName(Path.TrimEndingDirectorySeparator(found))
-            : $"Introuvable : {_edited.ModelPath}";
+            : _text.ModelNotFound(_edited.ModelPath);
 
     private void RefreshModel() =>
         _modelRow.SetDescription(
@@ -672,7 +684,7 @@ internal sealed class SettingsWindow : Form
 
         using var dialog = new FolderBrowserDialog
         {
-            Description = "Dossier du modèle Parakeet",
+            Description = _text.ModelFolderDialog,
             UseDescriptionForTitle = true,
             InitialDirectory = current ?? baseDirectory,
         };
@@ -690,7 +702,7 @@ internal sealed class SettingsWindow : Form
         {
             MessageBox.Show(
                 this,
-                $"Ce dossier ne contient pas de modèle utilisable.\n\n{ex.Message}",
+                _text.ModelUnusable(_text.ModelProblem(ex)),
                 "HexWin",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
@@ -739,6 +751,7 @@ internal sealed class SettingsWindow : Form
         _edited.Threads = _threads.Value;
         _edited.UnloadAfterMinutes = _unloadAfter.Value;
         _edited.LogEnabled = _logEnabled.Checked;
+        _edited.Language = LanguageValues[_language.SelectedIndex];
         _edited.Normalize();
 
         SaveOutcome outcome = _save(new SettingsSubmission(_edited, _autoStart.Checked, _desktopShortcut.Checked));
@@ -752,27 +765,27 @@ internal sealed class SettingsWindow : Form
         Close();
     }
 
-    private static string? Describe(SaveOutcome outcome)
+    /// <summary>
+    /// The report after a save, in the language the window was opened in —
+    /// not the one just chosen: a user who switched to a language they read
+    /// less well should still understand what happened to that switch.
+    /// </summary>
+    private string? Describe(SaveOutcome outcome)
     {
         List<string> paragraphs = [];
 
         if (outcome.NotPersisted.Count > 0)
         {
-            paragraphs.Add(
-                "Appliqué, mais settings.json n'a pas pu être mis à jour pour : "
-                + string.Join(", ", outcome.NotPersisted.Select(SettingText.NameOf))
-                + ".\nLe fichier est peut-être ouvert ailleurs ou en lecture seule ; "
-                + "ces réglages seront perdus au prochain démarrage.");
+            paragraphs.Add(_text.NotPersisted(
+                string.Join(", ", outcome.NotPersisted.Select(key => SettingText.NameOf(_text, key)))));
         }
 
-        IEnumerable<string> pending = outcome.AwaitingRestart.Except(outcome.NotPersisted);
+        string[] pending = [.. outcome.AwaitingRestart.Except(outcome.NotPersisted)];
 
-        if (pending.Any())
+        if (pending.Length > 0)
         {
-            paragraphs.Add(
-                "Enregistré. Prendra effet au prochain démarrage de HexWin : "
-                + string.Join(", ", pending.Select(SettingText.NameOf))
-                + ".");
+            paragraphs.Add(_text.AwaitingRestart(
+                string.Join(", ", pending.Select(key => SettingText.NameOf(_text, key)))));
         }
 
         return paragraphs.Count == 0 ? null : string.Join("\n\n", paragraphs);

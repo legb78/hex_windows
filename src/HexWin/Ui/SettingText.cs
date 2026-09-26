@@ -1,41 +1,28 @@
-using System.Globalization;
-
 namespace HexWin.Ui;
 
 /// <summary>
 /// How the settings window writes values and names settings. Kept apart from
 /// the window, which cannot be tested, because the wording is exactly what a
-/// test can pin down.
+/// test can pin down. Every method takes the language to write in, so a test
+/// never depends on the one in force.
 /// </summary>
 public static class SettingText
 {
-    private static readonly CultureInfo French = CultureInfo.GetCultureInfo("fr-FR");
-
-    /// <summary>The settings.json keys, as the window names them.</summary>
-    private static readonly Dictionary<string, string> Names = new(StringComparer.Ordinal)
+    /// <summary>A setting's name in the window; its key when the language has none.</summary>
+    public static string NameOf(UiStrings text, string key)
     {
-        ["modelPath"] = "Dossier du modèle",
-        ["hotkey"] = "Raccourci",
-        ["minRecordingMilliseconds"] = "Durée minimale",
-        ["maxRecordingSeconds"] = "Durée maximale",
-        ["segmentation"] = "Insérer phrase par phrase",
-        ["pauseMilliseconds"] = "Pause qui coupe une phrase",
-        ["unloadAfterMinutes"] = "Libérer la mémoire après",
-        ["provider"] = "Processeur de calcul",
-        ["threads"] = "Fils de calcul",
-        ["insertion"] = "Insertion du texte",
-        ["feedback"] = "Cercle et son",
-        ["feedbackColor"] = "Couleur du cercle",
-        ["feedbackSize"] = "Taille du cercle",
-        ["feedbackOpacity"] = "Opacité du cercle",
-        ["feedbackTopMargin"] = "Marge du cercle",
-        ["logEnabled"] = "Journal des dictées",
-    };
+        ArgumentNullException.ThrowIfNull(text);
 
-    /// <summary>A setting's name in the window; its key when the window has none.</summary>
-    public static string NameOf(string key) => Names.TryGetValue(key, out string? name) ? name : key;
+        return text.SettingNames.TryGetValue(key, out string? name) ? name : key;
+    }
 
-    public static string Milliseconds(int value) => $"{value.ToString("N0", French)} ms";
+    /// <summary>Thousands grouped the way the language groups them: 5 000 or 5,000.</summary>
+    public static string Milliseconds(UiStrings text, int value)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        return $"{value.ToString("N0", text.Culture)} ms";
+    }
 
     /// <summary>Seconds, turned into minutes once there are enough of them.</summary>
     public static string Seconds(int value)
@@ -55,11 +42,13 @@ public static class SettingText
     /// The delay before the model is released. Zero is not a delay but the
     /// absence of one: the model stays loaded, and the text has to say so.
     /// </summary>
-    public static string IdleMinutes(int value)
+    public static string IdleMinutes(UiStrings text, int value)
     {
+        ArgumentNullException.ThrowIfNull(text);
+
         if (value == 0)
         {
-            return "Jamais";
+            return text.Never;
         }
 
         if (value < 60)
@@ -77,12 +66,27 @@ public static class SettingText
     /// The pause that closes a sentence. Zero turns the cutting off, and the
     /// text has to say that, not "0 ms", which reads as a pause of no length.
     /// </summary>
-    public static string Pause(int value) => value == 0 ? "Désactivée" : Milliseconds(value);
+    public static string Pause(UiStrings text, int value)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        return value == 0 ? text.Off : Milliseconds(text, value);
+    }
 
     public static string Pixels(int value) => $"{value} px";
 
     /// <summary>An opacity from 0 to 255, as the percentage people think in.</summary>
-    public static string Opacity(int value) => $"{(int)Math.Round(value * 100 / 255.0)} %";
+    public static string Opacity(UiStrings text, int value)
+    {
+        ArgumentNullException.ThrowIfNull(text);
 
-    public static string Threads(int value) => value == 1 ? "1 fil" : $"{value} fils";
+        return text.Percent((int)Math.Round(value * 100 / 255.0));
+    }
+
+    public static string Threads(UiStrings text, int value)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        return text.ThreadCount(value);
+    }
 }

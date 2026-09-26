@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using HexWin.Audio;
 using HexWin.Configuration;
 using HexWin.Diagnostics;
@@ -75,6 +76,9 @@ internal sealed class TrayContext : ApplicationContext
     /// reach the shortcut and the circle.
     /// </summary>
     private bool _pendingLiveApply;
+
+    /// <summary>The language the tray menu was last built in.</summary>
+    private UiStrings? _menuLanguage;
 
     /// <summary>Wakes the interface thread when a later launch asks for the settings.</summary>
     private readonly RegisteredWaitHandle _showSettingsWait;
@@ -158,16 +162,14 @@ internal sealed class TrayContext : ApplicationContext
         }
 
         DialogResult answer = MessageBox.Show(
-            "Ajouter un raccourci HexWin sur le bureau ?\n\n"
-            + "Il démarre HexWin, ou ouvre ses paramètres quand HexWin tourne déjà. "
-            + "Vous pourrez le retirer dans Paramètres, page Général.",
+            T.DesktopShortcutQuestion,
             "HexWin",
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Question);
 
         if (answer == DialogResult.Yes && !DesktopShortcut.SetEnabled(true))
         {
-            ShowBalloon("Raccourci impossible", "Le raccourci n'a pas pu être créé sur le bureau.");
+            ShowBalloon(T.BalloonShortcutFailed, T.BalloonShortcutFailedBody);
         }
     }
 
@@ -232,7 +234,7 @@ internal sealed class TrayContext : ApplicationContext
             _log.Write($"échec du chargement : {ex.Message}");
             _coordinator.MarkFailed();
 
-            ShowBalloon("Modèle introuvable", $"{ex.Message}\n\nLancez scripts/get-model.ps1.");
+            ShowBalloon(T.BalloonModelMissing, T.BalloonModelMissingBody(T.ModelProblem(ex)));
         }
     }
 
@@ -261,8 +263,11 @@ internal sealed class TrayContext : ApplicationContext
         }
         catch (InvalidOperationException ex)
         {
+            // The recorder's message goes to the log, which stays in French; the
+            // balloon says the same thing in the language of the interface. The
+            // recorder throws this for one reason only: no capture device.
             _log.Write($"micro indisponible : {ex.Message}");
-            ShowBalloon("Micro indisponible", ex.Message);
+            ShowBalloon(T.BalloonMicrophone, T.MicrophoneMissing);
             return;
         }
 
@@ -408,22 +413,47 @@ internal sealed class TrayContext : ApplicationContext
 
     // --- Interface ---------------------------------------------------------------
 
+    /// <summary>The texts in force, short for the many places below that need one.</summary>
+    private static UiStrings T => UiStrings.Current;
+
     private NotifyIcon BuildNotifyIcon()
     {
-        var menu = new ContextMenuStrip();
+        var notifyIcon = new NotifyIcon
+        {
+            ContextMenuStrip = BuildMenu(),
+            Visible = true,
+            Icon = _icons[DictationState.Loading],
+        };
 
-        var preferences = new ToolStripMenuItem("Paramètres…", null, (_, _) => ShowSettingsWindow())
+        // The entry in bold is the one a double-click opens, as Windows does
+        // for the default item of any tray menu.
+        notifyIcon.DoubleClick += (_, _) => ShowSettingsWindow();
+
+        return notifyIcon;
+    }
+
+    /// <summary>
+    /// The tray menu, in the language in force. Built again, whole, when the
+    /// settings window saves another language: rebuilding costs nothing, and it
+    /// leaves no item to forget.
+    /// </summary>
+    private ContextMenuStrip BuildMenu()
+    {
+        var menu = new ContextMenuStrip();
+        _menuLanguage = T;
+
+        var preferences = new ToolStripMenuItem(T.MenuSettings, null, (_, _) => ShowSettingsWindow())
         {
             Font = new Font(menu.Font, FontStyle.Bold),
         };
         menu.Items.Add(preferences);
         menu.Items.Add(new ToolStripSeparator());
 
-        menu.Items.Add("Ouvrir settings.json", null, (_, _) => OpenSettings());
-        menu.Items.Add("Ouvrir le dossier des journaux", null, (_, _) => OpenLogFolder());
+        menu.Items.Add(T.MenuOpenSettingsFile, null, (_, _) => OpenSettings());
+        menu.Items.Add(T.MenuOpenLogFolder, null, (_, _) => OpenLogFolder());
         menu.Items.Add(new ToolStripSeparator());
 
-        var showCircle = new ToolStripMenuItem("Afficher le cercle pendant la dictée")
+        var showCircle = new ToolStripMenuItem(T.MenuShowCircle)
         {
             Checked = _feedback.ShowsCircle,
             CheckOnClick = true,
@@ -441,7 +471,7 @@ internal sealed class TrayContext : ApplicationContext
         menu.Items.Add(showCircle);
         _showCircleItem = showCircle;
 
-        var playTone = new ToolStripMenuItem("Jouer un son au début et à la fin")
+        var playTone = new ToolStripMenuItem(T.MenuPlayTone)
         {
             Checked = _feedback.PlaysTone,
             CheckOnClick = true,
@@ -461,7 +491,7 @@ internal sealed class TrayContext : ApplicationContext
 
         menu.Items.Add(new ToolStripSeparator());
 
-        var autoStart = new ToolStripMenuItem("Lancer au démarrage de Windows")
+        var autoStart = new ToolStripMenuItem(T.MenuStartWithWindows)
         {
             Checked = AutoStart.IsEnabled,
             CheckOnClick = true,
@@ -477,20 +507,9 @@ internal sealed class TrayContext : ApplicationContext
         _autoStartItem = autoStart;
 
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Quitter", null, (_, _) => Quit());
+        menu.Items.Add(T.MenuQuit, null, (_, _) => Quit());
 
-        var notifyIcon = new NotifyIcon
-        {
-            ContextMenuStrip = menu,
-            Visible = true,
-            Icon = _icons[DictationState.Loading],
-        };
-
-        // The entry in bold is the one a double-click opens, as Windows does
-        // for the default item of any tray menu.
-        notifyIcon.DoubleClick += (_, _) => ShowSettingsWindow();
-
-        return notifyIcon;
+        return menu;
     }
 
     // --- Settings window ---------------------------------------------------------
@@ -554,7 +573,18 @@ internal sealed class TrayContext : ApplicationContext
             AutoStart.SetEnabled(submission.AutoStart);
         }
 
-        if (submission.DesktopShortcut != DesktopShortcut.Exists && !DesktopShortcut.SetEnabled(submission.DesktopShortcut))
+        // The language first: the shortcut written below carries a description
+        // in it, and the menu rebuilt by ApplyLive reads it too.
+        UiStrings.Current = UiStrings.For(next.Language, CultureInfo.CurrentUICulture);
+
+        // Written again on every save while the switch is on, not only when it
+        // changes: after the HexWin folder has moved, the old shortcut still
+        // exists and points nowhere, and saving is how the user repairs it. It
+        // also brings its description into the language just chosen.
+        bool shortcutUpdated = !(submission.DesktopShortcut || DesktopShortcut.Exists)
+            || DesktopShortcut.SetEnabled(submission.DesktopShortcut);
+
+        if (!shortcutUpdated)
         {
             _log.Write("le raccourci du bureau n'a pas pu être mis à jour");
         }
@@ -645,6 +675,13 @@ internal sealed class TrayContext : ApplicationContext
             _syncingMenu = false;
         }
 
+        if (_menuLanguage != T)
+        {
+            ContextMenuStrip? previous = _notifyIcon.ContextMenuStrip;
+            _notifyIcon.ContextMenuStrip = BuildMenu();
+            previous?.Dispose();
+        }
+
         _notifyIcon.Text = Describe(_coordinator.State);
     }
 
@@ -662,11 +699,11 @@ internal sealed class TrayContext : ApplicationContext
 
     private string Describe(DictationState state) => state switch
     {
-        DictationState.Loading => "HexWin — chargement du modèle...",
-        DictationState.Idle => $"HexWin — prêt ({HotkeyText.Describe(_settings.Hotkey)})",
-        DictationState.Recording => "HexWin — enregistrement",
-        DictationState.Transcribing => "HexWin — transcription...",
-        DictationState.Failed => "HexWin — modèle introuvable",
+        DictationState.Loading => T.TipLoading,
+        DictationState.Idle => T.TipReady(HotkeyText.Describe(T, _settings.Hotkey)),
+        DictationState.Recording => T.TipRecording,
+        DictationState.Transcribing => T.TipTranscribing,
+        DictationState.Failed => T.TipModelMissing,
         _ => "HexWin",
     };
 
@@ -713,7 +750,7 @@ internal sealed class TrayContext : ApplicationContext
         }
         catch (Exception ex) when (ex is IOException or System.ComponentModel.Win32Exception)
         {
-            ShowBalloon("Ouverture impossible", path);
+            ShowBalloon(T.BalloonCannotOpen, path);
         }
     }
 

@@ -132,7 +132,19 @@ public sealed class AppSettings
     /// <summary>Logs the transcriptions and the engine actually loaded.</summary>
     public bool LogEnabled { get; set; } = true;
 
+    /// <summary>
+    /// Language of what HexWin shows: the settings window, the tray menu, the
+    /// balloons and dialogs. <c>auto</c> follows the Windows display language;
+    /// <c>fr</c> or <c>en</c> force one. Not the dictation language — the model
+    /// works out on its own which language is being spoken.
+    /// </summary>
+    public string Language { get; set; } = DefaultLanguage;
+
     // --- Reference values -----------------------------------------------------
+
+    private const string DefaultLanguage = "auto";
+
+    private static readonly string[] KnownLanguages = ["auto", "fr", "en"];
 
     private const string DefaultModelPath = "models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8";
     private const string DefaultProvider = "cpu";
@@ -436,6 +448,11 @@ public sealed class AppSettings
 
         Hotkey = NormalizeHotkey(Hotkey);
         Provider = NormalizeProvider(Provider);
+
+        // Anything unknown falls back to following Windows, which is always
+        // a language the user can read.
+        Language = KnownLanguages.FirstOrDefault(
+            known => string.Equals(known, Language?.Trim(), StringComparison.OrdinalIgnoreCase)) ?? DefaultLanguage;
 
         MinRecordingMilliseconds = Math.Clamp(MinRecordingMilliseconds, 0, MinRecordingMillisecondsCeiling);
         MaxRecordingSeconds = Math.Clamp(MaxRecordingSeconds, MaxRecordingSecondsFloor, MaxRecordingSecondsCeiling);

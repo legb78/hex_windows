@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using HexWin.Audio;
 using HexWin.Configuration;
 using HexWin.Diagnostics;
@@ -7,6 +8,7 @@ using HexWin.Feedback;
 using HexWin.Input;
 using HexWin.Output;
 using HexWin.Transcription;
+using HexWin.Ui;
 
 namespace HexWin.Tray;
 
@@ -26,7 +28,7 @@ namespace HexWin.Tray;
 [ExcludeFromCodeCoverage(Justification = "Windows Forms shell: requires an interactive session and a message loop.")]
 internal sealed class TrayContext : ApplicationContext
 {
-    private readonly AppSettings _settings;
+    private AppSettings _settings;
     private readonly SessionLog _log;
     private readonly string _modelPath;
 
@@ -45,7 +47,43 @@ internal sealed class TrayContext : ApplicationContext
     /// <summary>Window the user was speaking into, to find again before inserting.</summary>
     private TargetWindow? _target;
 
-    public TrayContext(AppSettings settings, string modelPath)
+    /// <summary>
+    /// The segments of the current dictation, transcribed and inserted one
+    /// after the other. Each new segment is chained behind the previous one,
+    /// so the text lands in the order it was spoken whatever the engine takes
+    /// on each piece.
+    /// </summary>
+    private Task _segments = Task.CompletedTask;
+
+    /// <summary>Segments seen so far in the current dictation.</summary>
+    private int _segmentCount;
+
+    private SettingsWindow? _settingsWindow;
+
+    // The menu entries a saved configuration has to bring back in line.
+    private ToolStripMenuItem _showCircleItem = null!;
+    private ToolStripMenuItem _playToneItem = null!;
+    private ToolStripMenuItem _autoStartItem = null!;
+
+    /// <summary>
+    /// True while the menu is being brought in line with a saved configuration,
+    /// so that its switches do not write back to the file what was just written.
+    /// </summary>
+    private bool _syncingMenu;
+
+    /// <summary>
+    /// Settings saved during a dictation, waiting for it to end before they
+    /// reach the shortcut and the circle.
+    /// </summary>
+    private bool _pendingLiveApply;
+
+    /// <summary>The language the tray menu was last built in.</summary>
+    private UiStrings? _menuLanguage;
+
+    /// <summary>Wakes the interface thread when a later launch asks for the settings.</summary>
+    private readonly RegisteredWaitHandle _showSettingsWait;
+
+    public TrayContext(AppSettings settings, string modelPath, EventWaitHandle showSettings)
     {
         _settings = settings;
         _log = SessionLog.Create(settings.LogEnabled);
@@ -61,7 +99,10 @@ internal sealed class TrayContext : ApplicationContext
             IdlePolicy.FromMinutes(settings.UnloadAfterMinutes),
             _log);
 
-        _recorder = new AudioRecorder(RecordingGuards.From(settings));
+        _recorder = new AudioRecorder(
+            RecordingGuards.From(settings),
+            settings.SegmentPause());
+        _recorder.SegmentReady += (_, audio) => _uiThread.Post(_ => Enqueue(audio), null);
         _recorder.MaximumReached += (_, _) => _uiThread.Post(_ => OnDictationEnded(), null);
 
         _hook = new KeyboardHook(new ChordDetector(settings.Hotkey));
@@ -86,7 +127,50 @@ internal sealed class TrayContext : ApplicationContext
         _hook.Install();
         _hookWatchdog.Start();
 
+        // The wait completes on a pool thread; the window belongs to this one.
+        _showSettingsWait = ThreadPool.RegisterWaitForSingleObject(
+            showSettings,
+            (_, _) => _uiThread.Post(_ => ShowSettingsWindow(), null),
+            null,
+            Timeout.Infinite,
+            executeOnlyOnce: false);
+
         _ = LoadEngineAsync();
+
+        // Posted rather than run here: the question is a modal dialog, and the
+        // tray icon should be up — and the message loop running — before it
+        // appears.
+        _uiThread.Post(_ => OfferDesktopShortcut(), null);
+    }
+
+    /// <summary>
+    /// Asks once, on the first start, whether to put HexWin on the desktop.
+    /// The answer is not asked again; the settings window can change it later.
+    /// </summary>
+    private void OfferDesktopShortcut()
+    {
+        if (DesktopShortcut.WasOffered)
+        {
+            return;
+        }
+
+        DesktopShortcut.MarkOffered();
+
+        if (DesktopShortcut.Exists)
+        {
+            return;
+        }
+
+        DialogResult answer = MessageBox.Show(
+            T.DesktopShortcutQuestion,
+            "HexWin",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+
+        if (answer == DialogResult.Yes && !DesktopShortcut.SetEnabled(true))
+        {
+            ShowBalloon(T.BalloonShortcutFailed, T.BalloonShortcutFailedBody);
+        }
     }
 
     /// <summary>
@@ -150,7 +234,7 @@ internal sealed class TrayContext : ApplicationContext
             _log.Write($"échec du chargement : {ex.Message}");
             _coordinator.MarkFailed();
 
-            ShowBalloon("Modèle introuvable", $"{ex.Message}\n\nLancez scripts/get-model.ps1.");
+            ShowBalloon(T.BalloonModelMissing, T.BalloonModelMissingBody(T.ModelProblem(ex)));
         }
     }
 
@@ -179,8 +263,11 @@ internal sealed class TrayContext : ApplicationContext
         }
         catch (InvalidOperationException ex)
         {
+            // The recorder's message goes to the log, which stays in French; the
+            // balloon says the same thing in the language of the interface. The
+            // recorder throws this for one reason only: no capture device.
             _log.Write($"micro indisponible : {ex.Message}");
-            ShowBalloon("Micro indisponible", ex.Message);
+            ShowBalloon(T.BalloonMicrophone, T.MicrophoneMissing);
             return;
         }
 
@@ -189,6 +276,13 @@ internal sealed class TrayContext : ApplicationContext
             _recorder.Stop();
             return;
         }
+
+        // The window is remembered NOW, while it is the one the user is
+        // speaking into: the first segment may be inserted long before the key
+        // is released, and a model reload can add two seconds on top — ample
+        // time to switch elsewhere, and to dump unwanted text there.
+        _target = TargetWindow.Capture();
+        _segmentCount = 0;
 
         // The reload starts here, on the key press, not on the release: it runs
         // while the user is speaking. On a two-second sentence, the three
@@ -204,23 +298,14 @@ internal sealed class TrayContext : ApplicationContext
             return;
         }
 
-        // The window is remembered NOW, while it is still the one the user was
-        // speaking into. After a model reload, two seconds can pass before the
-        // insertion — ample time to switch elsewhere, and to dump unwanted text
-        // there.
-        _target = TargetWindow.Capture();
-
-        RecordedAudio? recorded = _recorder.Stop();
-
-        if (recorded is not { } audio)
+        // Null when the press was too brief, or when what is left after the
+        // last pause holds no speech.
+        if (_recorder.Stop() is { } remainder)
         {
-            // Press too brief: the user brushed the key.
-            _coordinator.Complete();
-            _engines.SetBusy(false);
-            return;
+            Enqueue(remainder);
         }
 
-        _ = TranscribeAsync(audio);
+        _ = FinishAsync();
     }
 
     private void OnDictationCancelled()
@@ -228,12 +313,47 @@ internal sealed class TrayContext : ApplicationContext
         if (_coordinator.Cancel())
         {
             _recorder.Stop();
-            _engines.SetBusy(false);
             _log.Write("dictée annulée");
+            _ = FinishAsync();
         }
     }
 
-    private async Task TranscribeAsync(RecordedAudio audio)
+    private void Enqueue(RecordedAudio audio)
+    {
+        _segmentCount++;
+        _segments = TranscribeAfterAsync(_segments, audio, _segmentCount);
+    }
+
+    private async Task TranscribeAfterAsync(Task previous, RecordedAudio audio, int ordinal)
+    {
+        await previous.ConfigureAwait(true);
+        await TranscribeAsync(audio, ordinal).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Waits for every segment to be inserted, then puts the application back
+    /// to rest.
+    /// </summary>
+    private async Task FinishAsync()
+    {
+        // A segment closed in the last instants of the recording may still be
+        // on its way to this thread. Yielding once lets it join the queue
+        // before we wait for the queue to drain: both travel through the same
+        // message queue, in order.
+        await Task.Yield();
+
+        try
+        {
+            await _segments.ConfigureAwait(true);
+        }
+        finally
+        {
+            _coordinator.Complete();
+            _engines.SetBusy(false);
+        }
+    }
+
+    private async Task TranscribeAsync(RecordedAudio audio, int ordinal)
     {
         try
         {
@@ -251,12 +371,15 @@ internal sealed class TrayContext : ApplicationContext
             // faults, with the same symptom.
             // Only worth skipping when there is a cue to skip: with the tone
             // off, the opening of the recording is as trustworthy as the rest.
+            // Only the first segment holds the cue.
             double peak = AudioLevel.Peak(
                 audio.Wav.AsSpan(WavFile.HeaderSize),
-                _feedback.PlaysTone ? CueLead : TimeSpan.Zero);
+                _feedback.PlaysTone && ordinal == 1 ? CueLead : TimeSpan.Zero);
+
+            string label = ordinal == 1 ? "dictées" : $"dictées (segment {ordinal})";
 
             _log.Write(
-                $"{audio.Duration.TotalSeconds:F1} s dictées, niveau {peak:P1}, "
+                $"{audio.Duration.TotalSeconds:F1} s {label}, niveau {peak:P1}, "
                 + $"transcrites en {result.Duration.TotalSeconds:F2} s, "
                 + $"{result.Text.Length} caractères");
 
@@ -277,74 +400,289 @@ internal sealed class TrayContext : ApplicationContext
 
                 // Back on the interface thread thanks to ConfigureAwait(true):
                 // the clipboard requires an STA thread initialised for OLE.
-                TextInjector.Insert(result.Text, _settings.Insertion);
+                // A segment that follows another is separated from it by a
+                // space, as the engine would have put between two sentences.
+                TextInjector.Insert(ordinal == 1 ? result.Text : " " + result.Text, _settings.Insertion);
             }
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException)
         {
             _log.Write($"échec de la transcription : {ex.Message}");
         }
-        finally
-        {
-            _coordinator.Complete();
-            _engines.SetBusy(false);
-        }
     }
 
     // --- Interface ---------------------------------------------------------------
 
+    /// <summary>The texts in force, short for the many places below that need one.</summary>
+    private static UiStrings T => UiStrings.Current;
+
     private NotifyIcon BuildNotifyIcon()
     {
-        var menu = new ContextMenuStrip();
+        var notifyIcon = new NotifyIcon
+        {
+            ContextMenuStrip = BuildMenu(),
+            Visible = true,
+            Icon = _icons[DictationState.Loading],
+        };
 
-        menu.Items.Add("Ouvrir settings.json", null, (_, _) => OpenSettings());
-        menu.Items.Add("Ouvrir le dossier des journaux", null, (_, _) => OpenLogFolder());
+        // The entry in bold is the one a double-click opens, as Windows does
+        // for the default item of any tray menu.
+        notifyIcon.DoubleClick += (_, _) => ShowSettingsWindow();
+
+        return notifyIcon;
+    }
+
+    /// <summary>
+    /// The tray menu, in the language in force. Built again, whole, when the
+    /// settings window saves another language: rebuilding costs nothing, and it
+    /// leaves no item to forget.
+    /// </summary>
+    private ContextMenuStrip BuildMenu()
+    {
+        var menu = new ContextMenuStrip();
+        _menuLanguage = T;
+
+        var preferences = new ToolStripMenuItem(T.MenuSettings, null, (_, _) => ShowSettingsWindow())
+        {
+            Font = new Font(menu.Font, FontStyle.Bold),
+        };
+        menu.Items.Add(preferences);
         menu.Items.Add(new ToolStripSeparator());
 
-        var showCircle = new ToolStripMenuItem("Afficher le cercle pendant la dictée")
+        menu.Items.Add(T.MenuOpenSettingsFile, null, (_, _) => OpenSettings());
+        menu.Items.Add(T.MenuOpenLogFolder, null, (_, _) => OpenLogFolder());
+        menu.Items.Add(new ToolStripSeparator());
+
+        var showCircle = new ToolStripMenuItem(T.MenuShowCircle)
         {
             Checked = _feedback.ShowsCircle,
             CheckOnClick = true,
         };
         showCircle.CheckedChanged += (sender, _) =>
         {
+            if (_syncingMenu)
+            {
+                return;
+            }
+
             _feedback.SetShowsCircle(((ToolStripMenuItem)sender!).Checked);
             PersistFeedbackMode();
         };
         menu.Items.Add(showCircle);
+        _showCircleItem = showCircle;
 
-        var playTone = new ToolStripMenuItem("Jouer un son au début et à la fin")
+        var playTone = new ToolStripMenuItem(T.MenuPlayTone)
         {
             Checked = _feedback.PlaysTone,
             CheckOnClick = true,
         };
         playTone.CheckedChanged += (sender, _) =>
         {
+            if (_syncingMenu)
+            {
+                return;
+            }
+
             _feedback.SetPlaysTone(((ToolStripMenuItem)sender!).Checked);
             PersistFeedbackMode();
         };
         menu.Items.Add(playTone);
+        _playToneItem = playTone;
 
         menu.Items.Add(new ToolStripSeparator());
 
-        var autoStart = new ToolStripMenuItem("Lancer au démarrage de Windows")
+        var autoStart = new ToolStripMenuItem(T.MenuStartWithWindows)
         {
             Checked = AutoStart.IsEnabled,
             CheckOnClick = true,
         };
         autoStart.CheckedChanged += (sender, _) =>
-            AutoStart.SetEnabled(((ToolStripMenuItem)sender!).Checked);
+        {
+            if (!_syncingMenu)
+            {
+                AutoStart.SetEnabled(((ToolStripMenuItem)sender!).Checked);
+            }
+        };
         menu.Items.Add(autoStart);
+        _autoStartItem = autoStart;
 
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Quitter", null, (_, _) => Quit());
+        menu.Items.Add(T.MenuQuit, null, (_, _) => Quit());
 
-        return new NotifyIcon
+        return menu;
+    }
+
+    // --- Settings window ---------------------------------------------------------
+
+    /// <summary>
+    /// One window at a time: asking again brings the open one to the front
+    /// rather than opening a second copy that would save over the first.
+    /// </summary>
+    private void ShowSettingsWindow()
+    {
+        if (_settingsWindow is { IsDisposed: false })
         {
-            ContextMenuStrip = menu,
-            Visible = true,
-            Icon = _icons[DictationState.Loading],
+            if (_settingsWindow.WindowState == FormWindowState.Minimized)
+            {
+                _settingsWindow.WindowState = FormWindowState.Normal;
+            }
+
+            _settingsWindow.Activate();
+            return;
+        }
+
+        _settingsWindow = new SettingsWindow(
+            _settings,
+            AutoStart.IsEnabled,
+            DesktopShortcut.Exists,
+            _hook,
+            SaveSettings,
+            OpenSettings,
+            OpenLogFolder,
+            _icons[DictationState.Idle]);
+
+        _settingsWindow.FormClosed += (_, _) =>
+        {
+            _settingsWindow?.Dispose();
+            _settingsWindow = null;
         };
+
+        _settingsWindow.Show();
+        _settingsWindow.Activate();
+    }
+
+    /// <summary>
+    /// Takes in what the settings window saved: into settings.json, then into
+    /// the running application for whatever can change on the fly.
+    ///
+    /// <para>The file is written first and the application updated second, but
+    /// a write that fails does not hold the rest back: the user asked for the
+    /// change, and it holds until the next start either way. The window is told
+    /// which keys did not make it to the file, and which wait for a
+    /// restart.</para>
+    /// </summary>
+    private SaveOutcome SaveSettings(SettingsSubmission submission)
+    {
+        AppSettings next = submission.Settings;
+        IReadOnlyList<SettingChange> changes = SettingsDiff.Between(_settings, next);
+
+        IReadOnlyList<string> notPersisted = changes.Count == 0 ? [] : Persist(next, changes);
+
+        if (submission.AutoStart != AutoStart.IsEnabled)
+        {
+            AutoStart.SetEnabled(submission.AutoStart);
+        }
+
+        // The language first: the shortcut written below carries a description
+        // in it, and the menu rebuilt by ApplyLive reads it too.
+        UiStrings.Current = UiStrings.For(next.Language, CultureInfo.CurrentUICulture);
+
+        // Written again on every save while the switch is on, not only when it
+        // changes: after the HexWin folder has moved, the old shortcut still
+        // exists and points nowhere, and saving is how the user repairs it. It
+        // also brings its description into the language just chosen.
+        bool shortcutUpdated = !(submission.DesktopShortcut || DesktopShortcut.Exists)
+            || DesktopShortcut.SetEnabled(submission.DesktopShortcut);
+
+        if (!shortcutUpdated)
+        {
+            _log.Write("le raccourci du bureau n'a pas pu être mis à jour");
+        }
+
+        _settings = next;
+
+        if (_coordinator.State is DictationState.Recording or DictationState.Transcribing)
+        {
+            _pendingLiveApply = true;
+        }
+        else
+        {
+            ApplyLive();
+        }
+
+        if (changes.Count > 0)
+        {
+            _log.Write($"réglages enregistrés : {string.Join(", ", changes.Select(change => change.Key))}");
+        }
+
+        if (notPersisted.Count > 0)
+        {
+            _log.Write($"settings.json n'a pas pu être mis à jour pour : {string.Join(", ", notPersisted)}");
+        }
+
+        return new SaveOutcome(
+            [.. changes.Where(change => change.RequiresRestart).Select(change => change.Key)],
+            notPersisted);
+    }
+
+    /// <summary>
+    /// Writes the changed keys, and only those, so the comments of the file
+    /// survive. A file that does not exist is created whole: there are no
+    /// comments to lose, and a partial file would read as missing settings.
+    /// </summary>
+    private static IReadOnlyList<string> Persist(AppSettings next, IReadOnlyList<SettingChange> changes)
+    {
+        string path = SettingsPath;
+
+        if (!File.Exists(path))
+        {
+            try
+            {
+                File.WriteAllText(path, next.ToJson());
+                return [];
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return [.. changes.Select(change => change.Key)];
+            }
+        }
+
+        return AppSettings.RewriteValues(
+            path,
+            [.. changes.Select(change => KeyValuePair.Create(change.Key, change.JsonValue))],
+            appendMissing: true);
+    }
+
+    /// <summary>
+    /// Puts the parts that can change on the fly in line with the current
+    /// settings: the shortcut, the circle and the tones, the menu, the
+    /// tooltip. The insertion mode needs nothing — it is read at every
+    /// insertion.
+    ///
+    /// <para>Only ever run between two dictations. Swapping the shortcut while
+    /// its keys are held would break the swallowing balance the detector
+    /// keeps, and rebuilding the circle while it is on screen would make it
+    /// flash.</para>
+    /// </summary>
+    private void ApplyLive()
+    {
+        _pendingLiveApply = false;
+
+        _hook.ReplaceDetector(new ChordDetector(_settings.Hotkey));
+        _recorder.Pause = _settings.SegmentPause();
+        _feedback.Reconfigure(_settings);
+
+        _syncingMenu = true;
+
+        try
+        {
+            _showCircleItem.Checked = _feedback.ShowsCircle;
+            _playToneItem.Checked = _feedback.PlaysTone;
+            _autoStartItem.Checked = AutoStart.IsEnabled;
+        }
+        finally
+        {
+            _syncingMenu = false;
+        }
+
+        if (_menuLanguage != T)
+        {
+            ContextMenuStrip? previous = _notifyIcon.ContextMenuStrip;
+            _notifyIcon.ContextMenuStrip = BuildMenu();
+            previous?.Dispose();
+        }
+
+        _notifyIcon.Text = Describe(_coordinator.State);
     }
 
     private void ApplyState(DictationState state)
@@ -352,15 +690,20 @@ internal sealed class TrayContext : ApplicationContext
         _notifyIcon.Icon = _icons[state];
         _notifyIcon.Text = Describe(state);
         _feedback.Apply(state);
+
+        if (_pendingLiveApply && state == DictationState.Idle)
+        {
+            ApplyLive();
+        }
     }
 
     private string Describe(DictationState state) => state switch
     {
-        DictationState.Loading => "HexWin — chargement du modèle...",
-        DictationState.Idle => $"HexWin — prêt ({string.Join(" + ", _settings.Hotkey)})",
-        DictationState.Recording => "HexWin — enregistrement",
-        DictationState.Transcribing => "HexWin — transcription...",
-        DictationState.Failed => "HexWin — modèle introuvable",
+        DictationState.Loading => T.TipLoading,
+        DictationState.Idle => T.TipReady(HotkeyText.Describe(T, _settings.Hotkey)),
+        DictationState.Recording => T.TipRecording,
+        DictationState.Transcribing => T.TipTranscribing,
+        DictationState.Failed => T.TipModelMissing,
         _ => "HexWin",
     };
 
@@ -385,8 +728,7 @@ internal sealed class TrayContext : ApplicationContext
     {
         _settings.Feedback = _feedback.Mode;
 
-        string path = Path.Combine(AppContext.BaseDirectory, AppSettings.FileName);
-        bool written = AppSettings.TryRewriteValue(path, "feedback", $"\"{_feedback.Mode}\"");
+        bool written = AppSettings.TryRewriteValue(SettingsPath, "feedback", $"\"{_feedback.Mode}\"");
 
         if (!written)
         {
@@ -394,8 +736,9 @@ internal sealed class TrayContext : ApplicationContext
         }
     }
 
-    private void OpenSettings() =>
-        OpenInShell(Path.Combine(AppContext.BaseDirectory, AppSettings.FileName));
+    private static string SettingsPath => Path.Combine(AppContext.BaseDirectory, AppSettings.FileName);
+
+    private void OpenSettings() => OpenInShell(SettingsPath);
 
     private void OpenLogFolder() => OpenInShell(SessionLog.Directory);
 
@@ -407,7 +750,7 @@ internal sealed class TrayContext : ApplicationContext
         }
         catch (Exception ex) when (ex is IOException or System.ComponentModel.Win32Exception)
         {
-            ShowBalloon("Ouverture impossible", path);
+            ShowBalloon(T.BalloonCannotOpen, path);
         }
     }
 
@@ -421,6 +764,8 @@ internal sealed class TrayContext : ApplicationContext
     {
         if (disposing)
         {
+            _showSettingsWait.Unregister(null);
+            _settingsWindow?.Dispose();
             _hookWatchdog.Dispose();
             _hook.Dispose();
             _recorder.Dispose();

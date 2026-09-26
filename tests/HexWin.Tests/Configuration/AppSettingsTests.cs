@@ -194,6 +194,18 @@ public class AppSettingsTests
         Assert.Equal(expected, settings.MaxRecordingSeconds);
     }
 
+    [Theory]
+    [InlineData(-1, 0)]
+    [InlineData(0, 0)]
+    [InlineData(700, 700)]
+    [InlineData(60_000, 5_000)]
+    public void The_pause_is_brought_back_within_bounds(int written, int expected)
+    {
+        AppSettings settings = AppSettings.Parse($$"""{"pauseMilliseconds": {{written}}}""");
+
+        Assert.Equal(expected, settings.PauseMilliseconds);
+    }
+
     // --- Miscellaneous --------------------------------------------------------
 
     [Theory]
@@ -232,6 +244,7 @@ public class AppSettingsTests
             Hotkey = ["CapsLock"],
             MinRecordingMilliseconds = 400,
             MaxRecordingSeconds = 60,
+            PauseMilliseconds = 900,
             Provider = "cpu",
             Threads = 8,
             Insertion = InsertionMode.Type,
@@ -249,6 +262,7 @@ public class AppSettingsTests
         Assert.Equal(original.Hotkey, reread.Hotkey);
         Assert.Equal(original.MinRecordingMilliseconds, reread.MinRecordingMilliseconds);
         Assert.Equal(original.MaxRecordingSeconds, reread.MaxRecordingSeconds);
+        Assert.Equal(original.PauseMilliseconds, reread.PauseMilliseconds);
         Assert.Equal(original.Provider, reread.Provider);
         Assert.Equal(original.Threads, reread.Threads);
         Assert.Equal(original.Insertion, reread.Insertion);
@@ -372,5 +386,78 @@ public class AppSettingsTests
         AppSettings settings = AppSettings.Parse($$"""{"feedbackTopMargin": {{asked}}}""");
 
         Assert.Equal(expected, settings.FeedbackTopMargin);
+    }
+
+    [Fact]
+    public void The_shipped_file_and_the_code_agree_on_the_pause()
+    {
+        // They disagreed once — 700 in the code, 400 in the file — so the
+        // behaviour changed the moment a user removed the key, with nothing to
+        // say why. The file ships next to the tests as it does next to the app.
+        string shipped = Path.Combine(AppContext.BaseDirectory, AppSettings.FileName);
+
+        Assert.True(File.Exists(shipped), $"settings.json not found next to the tests: {shipped}");
+
+        AppSettings file = AppSettings.Load(shipped);
+        var code = new AppSettings();
+
+        Assert.Equal(code.PauseMilliseconds, file.PauseMilliseconds);
+        Assert.Equal(code.Segmentation, file.Segmentation);
+        Assert.Equal(code.Language, file.Language);
+    }
+
+    [Theory]
+    [InlineData("fr", "fr")]
+    [InlineData("EN", "en")]
+    [InlineData(" auto ", "auto")]
+    [InlineData("de", "auto")]
+    [InlineData("", "auto")]
+    public void An_unknown_language_falls_back_to_following_windows(string asked, string expected)
+    {
+        // Following Windows always lands on a language the user reads.
+        AppSettings settings = AppSettings.Parse($$"""{"language": "{{asked}}"}""");
+
+        Assert.Equal(expected, settings.Language);
+    }
+
+    [Fact]
+    public void The_language_follows_windows_by_default()
+    {
+        Assert.Equal("auto", AppSettings.Parse("{}").Language);
+    }
+
+    [Fact]
+    public void Segmentation_is_off_unless_asked_for()
+    {
+        // Text appearing mid-sentence is a surprise to anyone who did not turn
+        // it on; an older file without the key must behave as it always did.
+        AppSettings settings = AppSettings.Parse("""{"pauseMilliseconds": 700}""");
+
+        Assert.False(settings.Segmentation);
+        Assert.Equal(TimeSpan.Zero, settings.SegmentPause());
+    }
+
+    [Fact]
+    public void Segmentation_on_cuts_at_the_configured_pause()
+    {
+        AppSettings settings = AppSettings.Parse("""{"segmentation": true, "pauseMilliseconds": 450}""");
+
+        Assert.Equal(TimeSpan.FromMilliseconds(450), settings.SegmentPause());
+    }
+
+    [Fact]
+    public void A_pause_of_zero_keeps_the_cutting_off_even_when_asked_for()
+    {
+        AppSettings settings = AppSettings.Parse("""{"segmentation": true, "pauseMilliseconds": 0}""");
+
+        Assert.Equal(TimeSpan.Zero, settings.SegmentPause());
+    }
+
+    [Fact]
+    public void The_effective_pause_is_not_written_as_a_setting()
+    {
+        // SegmentPause is derived; were it a property, the serializer would
+        // add it to every file the settings window writes.
+        Assert.DoesNotContain("segmentPause", new AppSettings { Segmentation = true }.ToJson(), StringComparison.OrdinalIgnoreCase);
     }
 }

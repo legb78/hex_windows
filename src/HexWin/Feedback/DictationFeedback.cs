@@ -14,8 +14,8 @@ namespace HexWin.Feedback;
 internal sealed class DictationFeedback : IDisposable
 {
     private readonly FeedbackPolicy _policy;
-    private readonly AppSettings _settings;
     private readonly SessionLog _log;
+    private AppSettings _settings;
 
     private RecordingOverlay? _overlay;
     private CueTones? _tones;
@@ -89,6 +89,30 @@ internal sealed class DictationFeedback : IDisposable
 
         _policy.PlaysTone = enabled;
         _tones = enabled ? new CueTones(_log) : null;
+    }
+
+    /// <summary>
+    /// Takes in a configuration saved from the settings window: both switches,
+    /// and the look of the circle.
+    ///
+    /// <para>The circle is drawn once, when its window is built, so a new
+    /// colour or size means a new window. Called while nothing is on screen —
+    /// the tray only applies settings between two dictations — so the swap
+    /// cannot be seen.</para>
+    /// </summary>
+    public void Reconfigure(AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        _settings = settings;
+
+        var wanted = new FeedbackPolicy(settings.Feedback);
+        SetPlaysTone(wanted.PlaysTone);
+
+        // Off then on again rebuilds the circle from the new settings; when it
+        // is not wanted, turning it off is all there is to do.
+        SetShowsCircle(false);
+        SetShowsCircle(wanted.ShowsCircle);
     }
 
     /// <summary>Reflects the state just reached. Called on the interface thread.</summary>

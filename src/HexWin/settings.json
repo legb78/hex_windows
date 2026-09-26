@@ -9,8 +9,9 @@
   // Download it with get-model.ps1
   "modelPath": "models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
 
-  // There is no language setting: Parakeet v3 works out on its own which of
-  // its 25 European languages is being spoken.
+  // The dictation language is not a setting: Parakeet v3 works out on its own
+  // which of its 25 European languages is being spoken. "language", further
+  // down, is only the language of HexWin's own windows and menus.
 
   // Keys to hold in order to dictate.
   // Accepted values: Ctrl, LeftCtrl, RightCtrl, Alt, LeftAlt, RightAlt,
@@ -25,6 +26,20 @@
 
   // Stops recording if the key stays held down.
   "maxRecordingSeconds": 120,
+
+  // Sentence by sentence. With true, a pause in your speech closes a piece of
+  // the dictation, which is transcribed and inserted while you keep talking:
+  // on a long dictation the text lands sentence by sentence instead of all at
+  // once at the end. With false, everything arrives at release.
+  "segmentation": false,
+
+  // The pause that closes a piece, when "segmentation" is true. Kept while it
+  // is false, so turning it back on finds the same duration.
+  //
+  // The pause is detected on the sound level, with the same threshold that
+  // tells a muted microphone from a quiet room. In a noisy place no pause is
+  // ever seen and the text simply arrives at release.
+  "pauseMilliseconds": 700,
 
   // Minutes without dictating after which the model is freed from memory.
   // Set 0 to keep it resident indefinitely.
@@ -88,6 +103,11 @@
   "feedbackSize": 64,
   "feedbackOpacity": 235,
   "feedbackTopMargin": 40,
+
+  // Language of the settings window, the tray menu and the messages.
+  // "auto" follows the Windows display language; "fr" or "en" force one.
+  // Not the dictation language: the model detects which one you speak.
+  "language": "auto",
 
   // Logs each dictation: duration, captured level, characters produced.
   // Those three numbers together tell you whether the microphone heard you,

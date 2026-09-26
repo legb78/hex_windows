@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using HexWin.Audio;
 using HexWin.Configuration;
 using HexWin.Diagnostics;
@@ -8,6 +9,7 @@ using HexWin.Interop;
 using HexWin.Output;
 using HexWin.Transcription;
 using HexWin.Tray;
+using HexWin.Ui;
 
 namespace HexWin;
 
@@ -79,19 +81,27 @@ internal static class Program
 
         if (!isFirst)
         {
+            // Launched again — from the desktop shortcut, typically — while
+            // already running: the user wants the settings, not a second copy.
+            SingleInstance.AskRunningInstanceToShowSettings();
             return 0;
         }
 
+        using EventWaitHandle showSettings = SingleInstance.CreateListener();
+
         string baseDirectory = AppContext.BaseDirectory;
         AppSettings settings = AppSettings.Load(Path.Combine(baseDirectory, AppSettings.FileName));
+
+        // Chosen before anything is shown: the first thing the user may see is
+        // the missing-model dialog just below.
+        UiStrings.Current = UiStrings.For(settings.Language, CultureInfo.CurrentUICulture);
 
         string? modelPath = ModelLocator.Resolve(settings.ModelPath, baseDirectory);
 
         if (modelPath is null)
         {
             MessageBox.Show(
-                $"Modèle introuvable : {settings.ModelPath}\n\n"
-                + "Lancez scripts/get-model.ps1 pour le télécharger.",
+                UiStrings.Current.StartupModelMissing(settings.ModelPath),
                 "HexWin",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
@@ -109,7 +119,7 @@ internal static class Program
 
         try
         {
-            using var context = new TrayContext(settings, modelPath);
+            using var context = new TrayContext(settings, modelPath, showSettings);
             Application.Run(context);
             return 0;
         }
@@ -134,11 +144,11 @@ internal static class Program
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            path = "(journal inaccessible)";
+            path = UiStrings.Current.CrashLogUnavailable;
         }
 
         MessageBox.Show(
-            $"HexWin s'est arrêté sur une erreur :\n\n{error.Message}\n\nDétails dans {path}",
+            UiStrings.Current.Crashed(error.Message, path),
             "HexWin",
             MessageBoxButtons.OK,
             MessageBoxIcon.Error);
@@ -346,7 +356,8 @@ internal static class Program
 
         try
         {
-            using var recorder = new AudioRecorder(RecordingGuards.From(settings));
+            // No cutting here: the file must hold the whole recording.
+            using var recorder = new AudioRecorder(RecordingGuards.From(settings), TimeSpan.Zero);
 
             Console.WriteLine($"Enregistrement pendant {seconds} s — parlez maintenant.");
             recorder.Start();

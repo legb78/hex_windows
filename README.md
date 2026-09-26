@@ -36,8 +36,9 @@ Measured on a Dell Pro Max 16 (Core Ultra 7 255H), on CPU:
 
 The engine is **Parakeet TDT v3** by NVIDIA — the same one
 [Hex](https://github.com/kitlangton/Hex) uses on macOS. It identifies the spoken
-language on its own among 25 European languages, so there is no language setting
-to get wrong.
+language on its own among 25 European languages, so the language you dictate in
+is not a setting, and cannot be set wrong. The one `language` setting, further
+down, is for HexWin's own windows and menus.
 
 Whisper was tried first here, and dropped after measurement. It is an
 autoregressive encoder-decoder, which imposes a **fixed cost of about 1.4 s per
@@ -60,10 +61,15 @@ unzip it, then in PowerShell:
 
 Nothing else to install — not even .NET, which is bundled inside the executable.
 
-On the first start, HexWin asks once whether to put a **shortcut on the
-desktop**. That shortcut starts HexWin; double-clicked while HexWin is already
-running, it opens the settings window instead. It can be added or removed later
-from the settings, page *Général*.
+HexWin has no installer, so the first start is where it asks, once, whether to
+put a **shortcut on the desktop**. That shortcut starts HexWin; double-clicked
+while HexWin is already running, it opens the settings window instead. It can be
+added or removed later from the settings, on the general page.
+
+The shortcut points at the executable where it stood when the shortcut was
+made: move the HexWin folder and it breaks. Start HexWin from its new place,
+open the settings and save with the shortcut switch on: the shortcut is written
+anew on every save, for the new place.
 
 > **Windows will warn you the first time.** The executable is not code-signed,
 > so SmartScreen shows "Windows protected your PC". Click **More info**, then
@@ -103,7 +109,9 @@ Hold right `Shift`, speak, release. The text arrives at your cursor.
 
 For long dictations, turn on **sentence by sentence** in the settings (off by
 default): each pause in your speech then closes a piece, transcribed and
-inserted while you keep talking, instead of everything arriving at release.
+inserted while you keep talking, instead of everything arriving at release. A
+dictation cancelled halfway — another key pressed while the hotkey is held —
+keeps the sentences already inserted.
 
 A circle appears at the top of the screen while the application is busy, in
 the same colours as the tray icon — red while recording, orange while
@@ -112,11 +120,12 @@ recording. The tray is the wrong place to look while you are watching your
 own text; this is the same signal, where the eye already is. Both are set by
 `feedback` below, and either can be turned off on its own.
 
-Right-clicking the icon opens the **settings window**, the settings file and the
-log folder, and offers a **start with Windows** toggle. Worth enabling: the app
-does not come back on its own after a reboot otherwise. Double-clicking the icon
-opens the settings window directly, and so does launching `HexWin.exe` — or its
-desktop shortcut — while HexWin is already running.
+Right-clicking the icon opens a menu whose first entry, in bold, is the
+**settings window**; the others open the settings file and the log folder, and
+offer a **start with Windows** toggle. Worth enabling: the app does not come
+back on its own after a reboot otherwise. Double-clicking the icon opens the
+settings window directly, and so does launching `HexWin.exe` — or its desktop
+shortcut — while HexWin is already running.
 
 The same menu carries the two cues as independent switches — **the circle during
 dictation** and **the tone at each end**. Both take effect on the next dictation,
@@ -125,16 +134,21 @@ below.
 
 ### The settings window
 
-Every setting below, in four pages — dictation, cues, engine, general — without
-having to know a single key name. It follows the Windows light or dark theme,
-and takes the Windows 11 frame (round corners, Mica title bar) where the system
-offers it.
+Every setting below except `provider`, which has only one possible value, in
+four pages — without having to know a single key name. *Dictation* holds the
+hotkey, the minimum and maximum recording durations, paste or type, and sentence
+by sentence with its pause; *cues*, the circle and the tone, and the circle's
+colour, size, opacity and top margin; *engine*, the model folder, the threads
+and the idle unload; *general*, start with Windows, the desktop shortcut, the
+dictation log, the display language, and two buttons that open `settings.json`
+and the log folder. It follows the Windows light or dark theme, and takes the
+Windows 11 frame (round corners, Mica title bar) where the system offers it.
 
-- **The hotkey is captured, not typed**: click *Modifier*, hold the keys you
-  want, release. The window names the side of each key — *Maj droite*, not just
-  *Maj* — and warns when a single key costs you something for typing. While it
-  listens, the whole keyboard goes to the capture; Escape or a click elsewhere
-  hands it back.
+- **The hotkey is captured, not typed**: click the button beside it, hold the
+  keys you want, release. The window names the side of each key — *Right
+  Shift*, not just *Shift* — and warns when a single key costs you something for
+  typing. While it listens, the whole keyboard goes to the capture; Escape or a
+  click elsewhere hands it back.
 - **Save writes only what changed**, one line per setting, so the comments in
   `settings.json` survive. A setting missing from an older file is added.
 - **What can change on the fly does**: the hotkey, the insertion mode, sentence
@@ -142,6 +156,10 @@ offers it.
   dictation. The engine settings, the recording durations and the log are read
   at startup; the window says which ones wait for a restart.
 - **Cancel changes nothing**, in the file or in the running app.
+- **It speaks French or English**, following the Windows display language
+  unless `language` says otherwise: the window, the tray menu and its tooltip,
+  the balloons and dialogs, the key names — *Maj droite* or *Right Shift*. Not
+  the dictation, whose language Parakeet works out on its own, and not the log.
 
 ## Settings
 
@@ -158,13 +176,16 @@ invalid value falls back to its default** rather than preventing startup.
 | `feedbackSize` | Diameter of the circle in pixels, 16 to 512. |
 | `feedbackOpacity` | Opacity of the circle, 20 to 255. |
 | `feedbackTopMargin` | Pixels between the circle and the top of the screen. |
+| `modelPath` | Folder holding the Parakeet model, relative to the executable. |
 | `provider` | `cpu`, the only one available: the published native libraries are built for CPU only. |
 | `threads` | Threads allocated to decoding. |
 | `minRecordingMilliseconds` | Below this, the keypress is treated as accidental. |
 | `maxRecordingSeconds` | Stops recording if the key stays held. |
 | `segmentation` | `true` inserts a long dictation sentence by sentence, while you keep talking. `false` (default) inserts everything at release. |
-| `pauseMilliseconds` | With `segmentation` on, a pause this long closes a piece of the dictation. Kept while segmentation is off. Detected on the sound level: in a noisy room no pause is seen and the text simply arrives at release. |
+| `pauseMilliseconds` | With `segmentation` on, a pause this long closes a piece of the dictation: `700` (default), 100 ms to 5 s in the window. Kept while segmentation is off. Detected on the sound level: in a noisy room no pause is seen and the text simply arrives at release. |
 | `unloadAfterMinutes` | Frees the model after this long without dictating, reclaiming about 1 GB. `0` keeps it resident. Reloading starts when you *press* the hotkey, so it overlaps with you speaking. |
+| `logEnabled` | `true` (default) logs every dictation — duration, captured level, characters produced. See below. |
+| `language` | Language of HexWin's own interface: `auto` follows the Windows display language, `fr` and `en` force one. The dictation language is not affected, nor the log. |
 
 ## When something goes wrong
 

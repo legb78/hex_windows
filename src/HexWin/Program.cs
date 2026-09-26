@@ -346,7 +346,8 @@ internal static class Program
 
         try
         {
-            using var recorder = new AudioRecorder(RecordingGuards.From(settings));
+            // No cutting here: the file must hold the whole recording.
+            using var recorder = new AudioRecorder(RecordingGuards.From(settings), TimeSpan.Zero);
 
             Console.WriteLine($"Enregistrement pendant {seconds} s — parlez maintenant.");
             recorder.Start();

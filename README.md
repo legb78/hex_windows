@@ -94,7 +94,9 @@ The tray icon shows the current state:
 | Orange | Transcribing |
 | Crossed grey | Model not found |
 
-Hold `AltGr` + `Space`, speak, release. The text arrives at your cursor.
+Hold `AltGr` + `Space`, speak, release. The text arrives at your cursor. On a
+long dictation it lands sentence by sentence: each pause in your speech closes
+a piece, transcribed and inserted while you keep talking.
 
 A circle appears at the top of the screen while the application is busy, in
 the same colours as the tray icon — red while recording, orange while
@@ -131,6 +133,7 @@ preventing startup.
 | `threads` | Threads allocated to decoding. |
 | `minRecordingMilliseconds` | Below this, the keypress is treated as accidental. |
 | `maxRecordingSeconds` | Stops recording if the key stays held. |
+| `pauseMilliseconds` | A pause this long closes a piece of the dictation, inserted while you keep talking. `0` inserts everything at release. Detected on the sound level: in a noisy room no pause is seen and the text simply arrives at release. |
 | `unloadAfterMinutes` | Frees the model after this long without dictating, reclaiming about 1 GB. `0` keeps it resident. Reloading starts when you *press* the hotkey, so it overlaps with you speaking. |
 
 ## When something goes wrong

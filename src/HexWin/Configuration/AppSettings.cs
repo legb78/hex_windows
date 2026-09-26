@@ -71,6 +71,12 @@ public sealed class AppSettings
     public int MaxRecordingSeconds { get; set; } = 120;
 
     /// <summary>
+    /// A pause in speech this long closes a segment, transcribed and inserted
+    /// while the user keeps talking. Zero inserts everything at release.
+    /// </summary>
+    public int PauseMilliseconds { get; set; } = DefaultPauseMilliseconds;
+
+    /// <summary>
     /// ONNX Runtime compute provider. Only "cpu" is accepted; see
     /// <see cref="KnownProviders"/> for why the GPU ones were removed.
     /// </summary>
@@ -122,6 +128,13 @@ public sealed class AppSettings
     private const string DefaultProvider = "cpu";
     private const int DefaultThreads = 4;
     private const int DefaultUnloadAfterMinutes = 5;
+
+    /// <summary>
+    /// Long enough to sit between two sentences, short enough that the text
+    /// shows up while the next one is being spoken. Gaps between words are
+    /// well under half of it.
+    /// </summary>
+    private const int DefaultPauseMilliseconds = 700;
 
     /// <summary>
     /// Follow the tray icon rather than impose a colour: red while recording,
@@ -315,6 +328,9 @@ public sealed class AppSettings
 
         MinRecordingMilliseconds = Math.Clamp(MinRecordingMilliseconds, 0, 5_000);
         MaxRecordingSeconds = Math.Clamp(MaxRecordingSeconds, 5, 600);
+
+        // Zero stays allowed: that is how the cutting is turned off.
+        PauseMilliseconds = Math.Clamp(PauseMilliseconds, 0, 5_000);
         Threads = Math.Clamp(Threads, 1, MaxThreads);
 
         // Zero stays allowed: that is how the model is kept resident.

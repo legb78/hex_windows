@@ -194,6 +194,18 @@ public class AppSettingsTests
         Assert.Equal(expected, settings.MaxRecordingSeconds);
     }
 
+    [Theory]
+    [InlineData(-1, 0)]
+    [InlineData(0, 0)]
+    [InlineData(700, 700)]
+    [InlineData(60_000, 5_000)]
+    public void The_pause_is_brought_back_within_bounds(int written, int expected)
+    {
+        AppSettings settings = AppSettings.Parse($$"""{"pauseMilliseconds": {{written}}}""");
+
+        Assert.Equal(expected, settings.PauseMilliseconds);
+    }
+
     // --- Miscellaneous --------------------------------------------------------
 
     [Theory]
@@ -232,6 +244,7 @@ public class AppSettingsTests
             Hotkey = ["CapsLock"],
             MinRecordingMilliseconds = 400,
             MaxRecordingSeconds = 60,
+            PauseMilliseconds = 900,
             Provider = "cpu",
             Threads = 8,
             Insertion = InsertionMode.Type,
@@ -249,6 +262,7 @@ public class AppSettingsTests
         Assert.Equal(original.Hotkey, reread.Hotkey);
         Assert.Equal(original.MinRecordingMilliseconds, reread.MinRecordingMilliseconds);
         Assert.Equal(original.MaxRecordingSeconds, reread.MaxRecordingSeconds);
+        Assert.Equal(original.PauseMilliseconds, reread.PauseMilliseconds);
         Assert.Equal(original.Provider, reread.Provider);
         Assert.Equal(original.Threads, reread.Threads);
         Assert.Equal(original.Insertion, reread.Insertion);

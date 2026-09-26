@@ -20,6 +20,7 @@ namespace HexWin.Output;
 internal sealed partial class TextInjector
 {
     private const uint InputKeyboard = 1;
+    private const uint KeyEventExtended = 0x0001;
     private const uint KeyEventKeyUp = 0x0002;
     private const uint KeyEventUnicode = 0x0004;
 
@@ -241,7 +242,8 @@ internal sealed partial class TextInjector
             Keyboard = new KeyboardInputData
             {
                 VirtualKey = virtualKey,
-                Flags = keyUp ? KeyEventKeyUp : 0,
+                Flags = (keyUp ? KeyEventKeyUp : 0)
+                    | (VirtualKeys.IsExtended(virtualKey) ? KeyEventExtended : 0),
             },
         },
     };

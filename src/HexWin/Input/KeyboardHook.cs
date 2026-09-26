@@ -35,6 +35,7 @@ internal sealed partial class KeyboardHook : IDisposable
     private const uint LlkhfInjected = 0x10;
 
     private const uint InputKeyboard = 1;
+    private const uint KeyEventExtended = 0x0001;
     private const uint KeyEventKeyUp = 0x0002;
 
     private readonly ChordDetector _detector;
@@ -245,7 +246,8 @@ internal sealed partial class KeyboardHook : IDisposable
             Keyboard = new KeyboardInputData
             {
                 VirtualKey = (ushort)virtualKey,
-                Flags = keyUp ? KeyEventKeyUp : 0,
+                Flags = (keyUp ? KeyEventKeyUp : 0)
+                    | (VirtualKeys.IsExtended(virtualKey) ? KeyEventExtended : 0),
             },
         },
     };

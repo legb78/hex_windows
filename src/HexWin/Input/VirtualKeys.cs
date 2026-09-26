@@ -71,4 +71,17 @@ public static class VirtualKeys
     /// <summary>True when the code is one of the two Windows keys.</summary>
     public static bool IsWindowsKey(int virtualKey) =>
         virtualKey is LeftWindows or RightWindows;
+
+    /// <summary>
+    /// True for the keys a real keyboard reports with the extended prefix.
+    ///
+    /// <para>The right Alt and the right Ctrl share their scan code with the
+    /// left ones; only that prefix tells them apart. Injected without it, a
+    /// release of the right Alt reaches the application as a release of the
+    /// left one — and an application that tracks AltGr itself, as Chromium
+    /// does, keeps believing it held. Every Ctrl+V that follows then reads as
+    /// AltGr+V and pastes nothing. Reproduced in VS Code.</para>
+    /// </summary>
+    public static bool IsExtended(int virtualKey) =>
+        virtualKey is RightMenu or RightControl or LeftWindows or RightWindows;
 }

@@ -71,6 +71,22 @@ public sealed class AppSettings
     public int MaxRecordingSeconds { get; set; } = 120;
 
     /// <summary>
+    /// Inserts a long dictation sentence by sentence, each pause closing a
+    /// segment transcribed while the user keeps talking. Off by default: the
+    /// text then arrives at release, as it always did, and nobody finds it
+    /// appearing mid-sentence without having asked for it.
+    /// </summary>
+    public bool Segmentation { get; set; }
+
+    /// <summary>
+    /// A pause in speech this long closes a segment, when
+    /// <see cref="Segmentation"/> is on. Kept while it is off, so turning it
+    /// back on finds the duration the user had chosen. Zero also turns the
+    /// cutting off.
+    /// </summary>
+    public int PauseMilliseconds { get; set; } = DefaultPauseMilliseconds;
+
+    /// <summary>
     /// ONNX Runtime compute provider. Only "cpu" is accepted; see
     /// <see cref="KnownProviders"/> for why the GPU ones were removed.
     /// </summary>
@@ -124,6 +140,13 @@ public sealed class AppSettings
     private const int DefaultUnloadAfterMinutes = 5;
 
     /// <summary>
+    /// Long enough to sit between two sentences, short enough that the text
+    /// shows up while the next one is being spoken. Gaps between words are
+    /// well under half of it.
+    /// </summary>
+    private const int DefaultPauseMilliseconds = 700;
+
+    /// <summary>
     /// Follow the tray icon rather than impose a colour: red while recording,
     /// orange while transcribing. A circle that stayed one colour would say
     /// less than the icon it sits next to.
@@ -140,6 +163,7 @@ public sealed class AppSettings
     internal const int MinRecordingMillisecondsCeiling = 5_000;
     internal const int MaxRecordingSecondsFloor = 5;
     internal const int MaxRecordingSecondsCeiling = 600;
+    internal const int MaxPauseMilliseconds = 5_000;
     internal const int MaxUnloadAfterMinutes = 1_440;
     internal const int MaxThreads = 32;
 
@@ -248,6 +272,14 @@ public sealed class AppSettings
     }
 
     public string ToJson() => JsonSerializer.Serialize(this, JsonOptions);
+
+    /// <summary>
+    /// The silence that actually closes a segment: zero when segmentation is
+    /// off, whatever the pause says. A method rather than a property, so the
+    /// serializer does not write it to the file as a setting of its own.
+    /// </summary>
+    public TimeSpan SegmentPause() =>
+        Segmentation ? TimeSpan.FromMilliseconds(PauseMilliseconds) : TimeSpan.Zero;
 
     /// <summary>
     /// An independent copy, for a settings window to edit without touching
@@ -407,6 +439,9 @@ public sealed class AppSettings
 
         MinRecordingMilliseconds = Math.Clamp(MinRecordingMilliseconds, 0, MinRecordingMillisecondsCeiling);
         MaxRecordingSeconds = Math.Clamp(MaxRecordingSeconds, MaxRecordingSecondsFloor, MaxRecordingSecondsCeiling);
+
+        // Zero stays allowed: that is how the cutting is turned off.
+        PauseMilliseconds = Math.Clamp(PauseMilliseconds, 0, MaxPauseMilliseconds);
         Threads = Math.Clamp(Threads, 1, MaxThreads);
 
         // Zero stays allowed: that is how the model is kept resident.

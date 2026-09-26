@@ -101,6 +101,10 @@ The tray icon shows the current state:
 
 Hold right `Shift`, speak, release. The text arrives at your cursor.
 
+For long dictations, turn on **sentence by sentence** in the settings (off by
+default): each pause in your speech then closes a piece, transcribed and
+inserted while you keep talking, instead of everything arriving at release.
+
 A circle appears at the top of the screen while the application is busy, in
 the same colours as the tray icon — red while recording, orange while
 transcribing, nothing at rest — and a short tone marks each end of the
@@ -133,10 +137,10 @@ offers it.
   hands it back.
 - **Save writes only what changed**, one line per setting, so the comments in
   `settings.json` survive. A setting missing from an older file is added.
-- **What can change on the fly does**: the hotkey, the insertion mode, the circle
-  and the tones apply on the next dictation. The engine settings, the recording
-  durations and the log are read at startup; the window says which ones wait for
-  a restart.
+- **What can change on the fly does**: the hotkey, the insertion mode, sentence
+  by sentence and its pause, the circle and the tones apply on the next
+  dictation. The engine settings, the recording durations and the log are read
+  at startup; the window says which ones wait for a restart.
 - **Cancel changes nothing**, in the file or in the running app.
 
 ## Settings
@@ -158,6 +162,8 @@ invalid value falls back to its default** rather than preventing startup.
 | `threads` | Threads allocated to decoding. |
 | `minRecordingMilliseconds` | Below this, the keypress is treated as accidental. |
 | `maxRecordingSeconds` | Stops recording if the key stays held. |
+| `segmentation` | `true` inserts a long dictation sentence by sentence, while you keep talking. `false` (default) inserts everything at release. |
+| `pauseMilliseconds` | With `segmentation` on, a pause this long closes a piece of the dictation. Kept while segmentation is off. Detected on the sound level: in a noisy room no pause is seen and the text simply arrives at release. |
 | `unloadAfterMinutes` | Frees the model after this long without dictating, reclaiming about 1 GB. `0` keeps it resident. Reloading starts when you *press* the hotkey, so it overlaps with you speaking. |
 
 ## When something goes wrong

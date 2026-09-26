@@ -46,6 +46,17 @@ internal sealed class TrayContext : ApplicationContext
     /// <summary>Window the user was speaking into, to find again before inserting.</summary>
     private TargetWindow? _target;
 
+    /// <summary>
+    /// The segments of the current dictation, transcribed and inserted one
+    /// after the other. Each new segment is chained behind the previous one,
+    /// so the text lands in the order it was spoken whatever the engine takes
+    /// on each piece.
+    /// </summary>
+    private Task _segments = Task.CompletedTask;
+
+    /// <summary>Segments seen so far in the current dictation.</summary>
+    private int _segmentCount;
+
     private SettingsWindow? _settingsWindow;
 
     // The menu entries a saved configuration has to bring back in line.
@@ -84,7 +95,10 @@ internal sealed class TrayContext : ApplicationContext
             IdlePolicy.FromMinutes(settings.UnloadAfterMinutes),
             _log);
 
-        _recorder = new AudioRecorder(RecordingGuards.From(settings));
+        _recorder = new AudioRecorder(
+            RecordingGuards.From(settings),
+            settings.SegmentPause());
+        _recorder.SegmentReady += (_, audio) => _uiThread.Post(_ => Enqueue(audio), null);
         _recorder.MaximumReached += (_, _) => _uiThread.Post(_ => OnDictationEnded(), null);
 
         _hook = new KeyboardHook(new ChordDetector(settings.Hotkey));
@@ -258,6 +272,13 @@ internal sealed class TrayContext : ApplicationContext
             return;
         }
 
+        // The window is remembered NOW, while it is the one the user is
+        // speaking into: the first segment may be inserted long before the key
+        // is released, and a model reload can add two seconds on top — ample
+        // time to switch elsewhere, and to dump unwanted text there.
+        _target = TargetWindow.Capture();
+        _segmentCount = 0;
+
         // The reload starts here, on the key press, not on the release: it runs
         // while the user is speaking. On a two-second sentence, the three
         // seconds of loading are almost entirely hidden.
@@ -272,23 +293,14 @@ internal sealed class TrayContext : ApplicationContext
             return;
         }
 
-        // The window is remembered NOW, while it is still the one the user was
-        // speaking into. After a model reload, two seconds can pass before the
-        // insertion — ample time to switch elsewhere, and to dump unwanted text
-        // there.
-        _target = TargetWindow.Capture();
-
-        RecordedAudio? recorded = _recorder.Stop();
-
-        if (recorded is not { } audio)
+        // Null when the press was too brief, or when what is left after the
+        // last pause holds no speech.
+        if (_recorder.Stop() is { } remainder)
         {
-            // Press too brief: the user brushed the key.
-            _coordinator.Complete();
-            _engines.SetBusy(false);
-            return;
+            Enqueue(remainder);
         }
 
-        _ = TranscribeAsync(audio);
+        _ = FinishAsync();
     }
 
     private void OnDictationCancelled()
@@ -296,12 +308,47 @@ internal sealed class TrayContext : ApplicationContext
         if (_coordinator.Cancel())
         {
             _recorder.Stop();
-            _engines.SetBusy(false);
             _log.Write("dictée annulée");
+            _ = FinishAsync();
         }
     }
 
-    private async Task TranscribeAsync(RecordedAudio audio)
+    private void Enqueue(RecordedAudio audio)
+    {
+        _segmentCount++;
+        _segments = TranscribeAfterAsync(_segments, audio, _segmentCount);
+    }
+
+    private async Task TranscribeAfterAsync(Task previous, RecordedAudio audio, int ordinal)
+    {
+        await previous.ConfigureAwait(true);
+        await TranscribeAsync(audio, ordinal).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Waits for every segment to be inserted, then puts the application back
+    /// to rest.
+    /// </summary>
+    private async Task FinishAsync()
+    {
+        // A segment closed in the last instants of the recording may still be
+        // on its way to this thread. Yielding once lets it join the queue
+        // before we wait for the queue to drain: both travel through the same
+        // message queue, in order.
+        await Task.Yield();
+
+        try
+        {
+            await _segments.ConfigureAwait(true);
+        }
+        finally
+        {
+            _coordinator.Complete();
+            _engines.SetBusy(false);
+        }
+    }
+
+    private async Task TranscribeAsync(RecordedAudio audio, int ordinal)
     {
         try
         {
@@ -319,12 +366,15 @@ internal sealed class TrayContext : ApplicationContext
             // faults, with the same symptom.
             // Only worth skipping when there is a cue to skip: with the tone
             // off, the opening of the recording is as trustworthy as the rest.
+            // Only the first segment holds the cue.
             double peak = AudioLevel.Peak(
                 audio.Wav.AsSpan(WavFile.HeaderSize),
-                _feedback.PlaysTone ? CueLead : TimeSpan.Zero);
+                _feedback.PlaysTone && ordinal == 1 ? CueLead : TimeSpan.Zero);
+
+            string label = ordinal == 1 ? "dictées" : $"dictées (segment {ordinal})";
 
             _log.Write(
-                $"{audio.Duration.TotalSeconds:F1} s dictées, niveau {peak:P1}, "
+                $"{audio.Duration.TotalSeconds:F1} s {label}, niveau {peak:P1}, "
                 + $"transcrites en {result.Duration.TotalSeconds:F2} s, "
                 + $"{result.Text.Length} caractères");
 
@@ -345,17 +395,14 @@ internal sealed class TrayContext : ApplicationContext
 
                 // Back on the interface thread thanks to ConfigureAwait(true):
                 // the clipboard requires an STA thread initialised for OLE.
-                TextInjector.Insert(result.Text, _settings.Insertion);
+                // A segment that follows another is separated from it by a
+                // space, as the engine would have put between two sentences.
+                TextInjector.Insert(ordinal == 1 ? result.Text : " " + result.Text, _settings.Insertion);
             }
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException)
         {
             _log.Write($"échec de la transcription : {ex.Message}");
-        }
-        finally
-        {
-            _coordinator.Complete();
-            _engines.SetBusy(false);
         }
     }
 
@@ -582,6 +629,7 @@ internal sealed class TrayContext : ApplicationContext
         _pendingLiveApply = false;
 
         _hook.ReplaceDetector(new ChordDetector(_settings.Hotkey));
+        _recorder.Pause = _settings.SegmentPause();
         _feedback.Reconfigure(_settings);
 
         _syncingMenu = true;

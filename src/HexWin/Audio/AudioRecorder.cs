@@ -22,6 +22,7 @@ public readonly record struct RecordedAudio(byte[] Wav, TimeSpan Duration);
 public sealed class AudioRecorder : IDisposable
 {
     private readonly RecordingGuards _guards;
+    private readonly ISpeechDetector _detector;
     private readonly Lock _sync = new();
 
     private WaveInEvent? _device;
@@ -30,9 +31,14 @@ public sealed class AudioRecorder : IDisposable
     private bool _maximumReached;
 
     /// <param name="pause">Silence that closes a segment; zero to never cut.</param>
-    public AudioRecorder(RecordingGuards guards, TimeSpan pause)
+    /// <param name="detector">
+    /// Tells speech from silence to find the pauses. The recorder owns it and
+    /// disposes of it.
+    /// </param>
+    public AudioRecorder(RecordingGuards guards, TimeSpan pause, ISpeechDetector detector)
     {
         _guards = guards;
+        _detector = detector;
         Pause = pause;
     }
 
@@ -91,7 +97,8 @@ public sealed class AudioRecorder : IDisposable
 
             _maximumReached = false;
             _received = 0;
-            _segmenter = new SpeechSegmenter(Pause);
+            _detector.Reset();
+            _segmenter = new SpeechSegmenter(Pause, _detector);
 
             var device = new WaveInEvent
             {
@@ -272,5 +279,7 @@ public sealed class AudioRecorder : IDisposable
 
             _segmenter = null;
         }
+
+        (_detector as IDisposable)?.Dispose();
     }
 }

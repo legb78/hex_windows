@@ -105,7 +105,8 @@ internal sealed class TrayContext : ApplicationContext
 
         _recorder = new AudioRecorder(
             RecordingGuards.From(settings),
-            settings.SegmentPause());
+            settings.SegmentPause(),
+            CreateSpeechDetector(modelPath));
         _recorder.SegmentReady += (_, audio) => _uiThread.Post(_ => Enqueue(audio), null);
         _recorder.MaximumReached += (_, _) => _uiThread.Post(_ => OnDictationEnded(), null);
 
@@ -239,6 +240,25 @@ internal sealed class TrayContext : ApplicationContext
 
             ShowBalloon(T.BalloonModelMissing, T.BalloonModelMissingBody(T.ModelProblem(ex)));
         }
+    }
+
+    /// <summary>
+    /// Silero VAD when its model sits next to the engine's folder, as
+    /// get-model.ps1 installs it; the level threshold otherwise, which was the
+    /// only detector before and still works in a quiet room.
+    /// </summary>
+    private ISpeechDetector CreateSpeechDetector(string modelPath)
+    {
+        string modelsDirectory = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(modelPath)) ?? modelPath;
+        string file = Path.Combine(modelsDirectory, SileroSpeechDetector.FileName);
+
+        if (!File.Exists(file))
+        {
+            _log.Write($"détecteur de parole absent ({file}) : pauses repérées au volume sonore");
+            return new LevelSpeechDetector();
+        }
+
+        return new SileroSpeechDetector(file);
     }
 
     // --- One dictation, end to end ----------------------------------------------

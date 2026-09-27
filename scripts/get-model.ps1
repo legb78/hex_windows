@@ -61,6 +61,19 @@ if (-not (Test-Path $modelsDir)) {
     New-Item -ItemType Directory -Path $modelsDir | Out-Null
 }
 
+# Silero VAD finds the pauses of a dictation inserted sentence by sentence.
+# 650 KB, fetched before the model check below: an installation made
+# before the detector existed must get it too, without redownloading the rest.
+$vadPath = Join-Path $modelsDir 'silero_vad.onnx'
+
+if (-not (Test-Path $vadPath) -or $Force) {
+    Write-Host "Downloading the speech detector (silero_vad.onnx, 650 KB)..."
+    $vadPart = "$vadPath.part"
+    Invoke-WebRequest -Uri 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx' `
+        -OutFile $vadPart -UseBasicParsing
+    Move-Item $vadPart $vadPath -Force
+}
+
 Write-Host "Model       : $modelName"
 Write-Host "Destination : $destination"
 

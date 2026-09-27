@@ -11,16 +11,18 @@ namespace HexWin.Audio;
 /// it will never be revised. On a long dictation the text then lands sentence
 /// by sentence instead of all at once at the end.</para>
 ///
-/// <para>The detection is a plain level threshold, the one already used to
-/// tell a dead microphone from a silent room. Background noise above it means
-/// no pause is ever seen and the recording stays in one piece — exactly what
-/// happened before segmentation existed, not a failure.</para>
+/// <para>Speech is told from silence by an <see cref="ISpeechDetector"/>:
+/// Silero VAD when its model is installed, a plain level threshold otherwise.
+/// With the threshold, background noise above it means no pause is ever seen
+/// and the recording stays in one piece — exactly what happened before
+/// segmentation existed, not a failure.</para>
 ///
 /// <para>Pure logic, so entirely testable without a microphone.</para>
 /// </summary>
 public sealed class SpeechSegmenter
 {
     private readonly TimeSpan _pause;
+    private readonly ISpeechDetector _detector;
     private readonly MemoryStream _current = new();
 
     private long _quietBytes;
@@ -32,10 +34,17 @@ public sealed class SpeechSegmenter
     /// recording then comes out of <see cref="Flush"/> in one piece.
     /// </param>
     public SpeechSegmenter(TimeSpan pause)
+        : this(pause, new LevelSpeechDetector())
+    {
+    }
+
+    public SpeechSegmenter(TimeSpan pause, ISpeechDetector detector)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(pause, TimeSpan.Zero);
+        ArgumentNullException.ThrowIfNull(detector);
 
         _pause = pause;
+        _detector = detector;
     }
 
     public bool IsEnabled => _pause > TimeSpan.Zero;
@@ -56,14 +65,14 @@ public sealed class SpeechSegmenter
             return null;
         }
 
-        if (AudioLevel.IsSilent(pcm))
-        {
-            _quietBytes += pcm.Length;
-        }
-        else
+        if (_detector.IsSpeech(pcm))
         {
             _heardSpeech = true;
             _quietBytes = 0;
+        }
+        else
+        {
+            _quietBytes += pcm.Length;
         }
 
         // Silence before any speech is not a pause, just the user drawing

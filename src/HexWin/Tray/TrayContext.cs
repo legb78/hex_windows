@@ -118,9 +118,8 @@ internal sealed class TrayContext : ApplicationContext
         _coordinator.StateChanged += (_, state) => ApplyState(state);
         ApplyState(_coordinator.State);
 
-        // The Windows Forms timer runs on the interface thread, the very one
-        // that holds the hook: the reinstall therefore happens where Windows
-        // requires it.
+        // The hook hands the reinstall over to its own thread, where Windows
+        // requires it to happen.
         _hookWatchdog = new System.Windows.Forms.Timer { Interval = (int)WatchdogInterval.TotalMilliseconds };
         _hookWatchdog.Tick += (_, _) => WatchHook();
 

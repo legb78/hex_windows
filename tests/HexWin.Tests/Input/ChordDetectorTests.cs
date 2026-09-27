@@ -237,6 +237,62 @@ public class ChordDetectorTests
         Assert.False(detector.IsActive);
     }
 
+    // --- A press that got through anyway ---------------------------------------
+
+    [Fact]
+    public void A_swallowed_press_that_reached_Windows_is_released_to_Windows()
+    {
+        // Windows delivers a key itself when the hook misses its deadline. The
+        // release must then go through, or Shift stays held after the dictation
+        // and everything typed comes out in capitals.
+        var detector = new ChordDetector(["RightShift"]);
+
+        Assert.True(detector.OnKeyDown(VirtualKeys.RightShift).Swallow);
+
+        ChordDecision release = detector.OnKeyUp(VirtualKeys.RightShift, pressReachedWindows: true);
+
+        Assert.False(release.Swallow);
+        Assert.Equal(ChordAction.Stop, release.Action);
+    }
+
+    [Fact]
+    public void A_leaked_auto_repeat_is_released_to_Windows()
+    {
+        var detector = new ChordDetector(["RightAlt"]);
+        detector.OnKeyDown(VirtualKeys.RightMenu);
+
+        Assert.True(detector.OnKeyDown(VirtualKeys.RightMenu).Swallow);
+        Assert.False(detector.OnKeyUp(VirtualKeys.RightMenu, pressReachedWindows: true).Swallow);
+    }
+
+    [Fact]
+    public void A_leaked_Windows_key_is_released_by_the_neutral_key()
+    {
+        // Let through on its own, the release would open the Start menu: it
+        // stays swallowed, and the neutral key releases the Windows key.
+        ChordDetector detector = CtrlWin();
+        detector.OnKeyDown(Ctrl);
+        detector.OnKeyDown(Win);
+
+        ChordDecision release = detector.OnKeyUp(Win, pressReachedWindows: true);
+
+        Assert.True(release.Swallow);
+        Assert.True(release.NeutralizeStartMenu);
+    }
+
+    [Fact]
+    public void A_key_never_swallowed_needs_no_repair()
+    {
+        ChordDetector detector = CtrlWin();
+        detector.OnKeyDown(Ctrl);
+        detector.OnKeyDown(Win);
+
+        ChordDecision release = detector.OnKeyUp(Ctrl, pressReachedWindows: true);
+
+        Assert.False(release.Swallow);
+        Assert.False(release.NeutralizeStartMenu);
+    }
+
     // --- Start menu -------------------------------------------------------------
 
     [Fact]

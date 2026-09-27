@@ -521,7 +521,7 @@ internal sealed class SettingsWindow : Form
         _hotkeyButton.Text = _text.Cancel;
         _hotkeyRow.SetDescription(_text.CaptureHint);
 
-        _hook.BeginCapture(OnCapturedKey);
+        _hook.BeginCapture(Handle, OnCapturedKey, StopCapture);
     }
 
     private void StopCapture()
@@ -538,28 +538,20 @@ internal sealed class SettingsWindow : Form
     }
 
     /// <summary>
-    /// Runs inside the keyboard hook callback: nothing here may block, and
-    /// above all no dialog — Windows would uninstall the hook past its deadline.
+    /// Posted by the keyboard hook for every key it swallowed for the capture.
+    /// The hook only takes keys while this window is in the foreground, and
+    /// ends the capture on the first one pressed elsewhere: losing the focus
+    /// normally ends it through <see cref="OnDeactivate"/>, but a window
+    /// brought forward or sent back by another program does not always get
+    /// that far — and a capture left running would swallow what the user types
+    /// in the other window, then save it as their shortcut.
     /// </summary>
-    /// <returns>
-    /// False to give the key back to Windows: the capture only takes keys
-    /// while this window is the active one. Losing the focus normally ends it
-    /// through <see cref="OnDeactivate"/>, but a window brought forward or sent
-    /// back by another program does not always get that far — and a capture
-    /// left running would swallow what the user types in the other window,
-    /// then save it as their shortcut.
-    /// </returns>
-    private bool OnCapturedKey(int virtualKey, bool keyDown)
+    private void OnCapturedKey(int virtualKey, bool keyDown)
     {
+        // A key posted just before the capture ended.
         if (_capture is null)
         {
-            return false;
-        }
-
-        if (ActiveForm != this)
-        {
-            StopCapture();
-            return false;
+            return;
         }
 
         CaptureStep step = keyDown ? _capture.OnKeyDown(virtualKey) : _capture.OnKeyUp(virtualKey);
@@ -587,8 +579,6 @@ internal sealed class SettingsWindow : Form
                     : _text.Holding(HotkeyText.Describe(_text, step.Keys)));
                 break;
         }
-
-        return true;
     }
 
     /// <summary>

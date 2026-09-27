@@ -9,6 +9,7 @@ using HexWin.Input;
 using HexWin.Output;
 using HexWin.Transcription;
 using HexWin.Ui;
+using NAudio;
 
 namespace HexWin.Tray;
 
@@ -57,6 +58,9 @@ internal sealed class TrayContext : ApplicationContext
 
     /// <summary>Segments seen so far in the current dictation.</summary>
     private int _segmentCount;
+
+    /// <summary>The microphone is listening to the tail of a released dictation.</summary>
+    private bool _ending;
 
     private SettingsWindow? _settingsWindow;
 
@@ -292,6 +296,39 @@ internal sealed class TrayContext : ApplicationContext
 
     private void OnDictationEnded()
     {
+        // The release and the ceiling can both land during the tail.
+        if (_coordinator.State != DictationState.Recording || _ending)
+        {
+            return;
+        }
+
+        _ = EndDictationAsync();
+    }
+
+    private async Task EndDictationAsync()
+    {
+        _ending = true;
+        RecordedAudio? remainder = null;
+
+        try
+        {
+            // The state stays on Recording while the microphone listens to the
+            // tail: the end tone, played on leaving it, would otherwise be
+            // recorded over the last word when the cue goes through speakers.
+            remainder = await _recorder.StopAsync().ConfigureAwait(true);
+        }
+        catch (MmException ex)
+        {
+            // Nobody awaits this task: an escaping exception would leave the
+            // state on Recording for good, and the hotkey dead.
+            _log.Write($"arrêt du micro impossible : {ex.Message}");
+        }
+        finally
+        {
+            _ending = false;
+        }
+
+        // False when the dictation was cancelled during the tail.
         if (!_coordinator.TryStartTranscribing())
         {
             return;
@@ -299,12 +336,12 @@ internal sealed class TrayContext : ApplicationContext
 
         // Null when the press was too brief, or when what is left after the
         // last pause holds no speech.
-        if (_recorder.Stop() is { } remainder)
+        if (remainder is { } audio)
         {
-            Enqueue(remainder);
+            Enqueue(audio);
         }
 
-        _ = FinishAsync();
+        await FinishAsync().ConfigureAwait(true);
     }
 
     private void OnDictationCancelled()

@@ -59,6 +59,9 @@ internal sealed class TrayContext : ApplicationContext
     /// <summary>Segments seen so far in the current dictation.</summary>
     private int _segmentCount;
 
+    /// <summary>Stitches the segments of the current dictation back together.</summary>
+    private SegmentJoiner _joiner = new();
+
     /// <summary>The microphone is listening to the tail of a released dictation.</summary>
     private bool _ending;
 
@@ -107,7 +110,7 @@ internal sealed class TrayContext : ApplicationContext
             RecordingGuards.From(settings),
             settings.SegmentPause(),
             CreateSpeechDetector(modelPath));
-        _recorder.SegmentReady += (_, audio) => _uiThread.Post(_ => Enqueue(audio), null);
+        _recorder.SegmentReady += (_, audio) => _uiThread.Post(_ => Enqueue(audio, isLast: false), null);
         _recorder.MaximumReached += (_, _) => _uiThread.Post(_ => OnDictationEnded(), null);
 
         _hook = new KeyboardHook(new ChordDetector(settings.Hotkey));
@@ -306,6 +309,7 @@ internal sealed class TrayContext : ApplicationContext
         // time to switch elsewhere, and to dump unwanted text there.
         _target = TargetWindow.Capture();
         _segmentCount = 0;
+        _joiner = new SegmentJoiner();
 
         // The reload starts here, on the key press, not on the release: it runs
         // while the user is speaking. On a two-second sentence, the three
@@ -358,10 +362,10 @@ internal sealed class TrayContext : ApplicationContext
         // last pause holds no speech.
         if (remainder is { } audio)
         {
-            Enqueue(audio);
+            Enqueue(audio, isLast: true);
         }
 
-        await FinishAsync().ConfigureAwait(true);
+        await FinishAsync(keepText: true).ConfigureAwait(true);
     }
 
     private void OnDictationCancelled()
@@ -370,27 +374,35 @@ internal sealed class TrayContext : ApplicationContext
         {
             _recorder.Stop();
             _log.Write("dictée annulée");
-            _ = FinishAsync();
+            _ = FinishAsync(keepText: false);
         }
     }
 
-    private void Enqueue(RecordedAudio audio)
+    /// <param name="isLast">
+    /// The remainder handed back when the recording stopped: no segment will
+    /// follow it.
+    /// </param>
+    private void Enqueue(RecordedAudio audio, bool isLast)
     {
         _segmentCount++;
-        _segments = TranscribeAfterAsync(_segments, audio, _segmentCount);
+        _segments = TranscribeAfterAsync(_segments, audio, _segmentCount, isLast);
     }
 
-    private async Task TranscribeAfterAsync(Task previous, RecordedAudio audio, int ordinal)
+    private async Task TranscribeAfterAsync(Task previous, RecordedAudio audio, int ordinal, bool isLast)
     {
         await previous.ConfigureAwait(true);
-        await TranscribeAsync(audio, ordinal).ConfigureAwait(true);
+        await TranscribeAsync(audio, ordinal, isLast).ConfigureAwait(true);
     }
 
     /// <summary>
     /// Waits for every segment to be inserted, then puts the application back
     /// to rest.
     /// </summary>
-    private async Task FinishAsync()
+    /// <param name="keepText">
+    /// False for a cancelled dictation: the full stop the joiner may still
+    /// hold is not inserted after text the user abandoned.
+    /// </param>
+    private async Task FinishAsync(bool keepText)
     {
         // A segment closed in the last instants of the recording may still be
         // on its way to this thread. Yielding once lets it join the queue
@@ -401,6 +413,13 @@ internal sealed class TrayContext : ApplicationContext
         try
         {
             await _segments.ConfigureAwait(true);
+
+            // Held back from a segment in case the next one continued its
+            // sentence; the dictation ended on a pause instead.
+            if (keepText && _joiner.Finish() is { Length: > 0 } held)
+            {
+                Insert(held);
+            }
         }
         finally
         {
@@ -409,7 +428,7 @@ internal sealed class TrayContext : ApplicationContext
         }
     }
 
-    private async Task TranscribeAsync(RecordedAudio audio, int ordinal)
+    private async Task TranscribeAsync(RecordedAudio audio, int ordinal, bool isLast)
     {
         try
         {
@@ -448,23 +467,26 @@ internal sealed class TrayContext : ApplicationContext
 
             if (result.Text.Length > 0)
             {
-                // Brings back the window the user was speaking into, if it is
-                // no longer in the foreground. Does nothing if it has vanished,
-                // or if Windows refuses the change: we insert anyway, into the
-                // current window, rather than lose the dictation.
-                _target?.Restore();
-
-                // Back on the interface thread thanks to ConfigureAwait(true):
-                // the clipboard requires an STA thread initialised for OLE.
-                // A segment that follows another is separated from it by a
-                // space, as the engine would have put between two sentences.
-                TextInjector.Insert(ordinal == 1 ? result.Text : " " + result.Text, _settings.Insertion);
+                Insert(_joiner.Next(result.Text, isLast));
             }
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException)
         {
             _log.Write($"échec de la transcription : {ex.Message}");
         }
+    }
+
+    private void Insert(string text)
+    {
+        // Brings back the window the user was speaking into, if it is no
+        // longer in the foreground. Does nothing if it has vanished, or if
+        // Windows refuses the change: we insert anyway, into the current
+        // window, rather than lose the dictation.
+        _target?.Restore();
+
+        // Called on the interface thread: the clipboard requires an STA thread
+        // initialised for OLE.
+        TextInjector.Insert(text, _settings.Insertion);
     }
 
     // --- Interface ---------------------------------------------------------------

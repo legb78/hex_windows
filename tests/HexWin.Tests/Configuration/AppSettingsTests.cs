@@ -122,6 +122,14 @@ public class AppSettingsTests
     }
 
     [Fact]
+    public void Any_key_is_accepted_and_written_in_its_usual_form()
+    {
+        AppSettings settings = AppSettings.Parse("""{"hotkey": ["ctrl", "a", "vk_e8"]}""");
+
+        Assert.Equal(["Ctrl", "A", "VK_E8"], settings.Hotkey);
+    }
+
+    [Fact]
     public void An_unknown_key_invalidates_the_whole_shortcut()
     {
         // Dropping the offending key would widen the combination instead of

@@ -70,6 +70,28 @@ public class SettingTextTests
     }
 
     [Fact]
+    public void Any_other_lone_key_is_named_in_the_warning()
+    {
+        Assert.Equal("La touche Échap ne fera plus rien d'autre tant que HexWin tourne.", HotkeyText.Caveat(Fr, ["Escape"]));
+        Assert.Equal("A alone will do nothing else while HexWin runs.", HotkeyText.Caveat(En, ["A"]));
+    }
+
+    [Fact]
+    public void A_lone_modifier_costs_nothing_and_carries_no_warning()
+    {
+        Assert.Null(HotkeyText.Caveat(Fr, ["RightCtrl"]));
+        Assert.Null(HotkeyText.Caveat(En, ["F20"]));
+    }
+
+    [Fact]
+    public void A_key_the_language_does_not_name_is_shown_as_it_is()
+    {
+        Assert.Equal("Ctrl + A", HotkeyText.Describe(Fr, ["Ctrl", "A"]));
+        Assert.Equal("F5", HotkeyText.Describe(En, "F5"));
+        Assert.Equal("VK_E8", HotkeyText.Describe(En, "VK_E8"));
+    }
+
+    [Fact]
     public void A_chord_costs_no_key_for_typing_and_carries_no_warning()
     {
         Assert.Null(HotkeyText.Caveat(Fr, ["LeftCtrl", "Space"]));

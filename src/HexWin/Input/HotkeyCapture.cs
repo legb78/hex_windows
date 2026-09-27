@@ -9,14 +9,11 @@ public enum CaptureState
     /// <summary>Every key was released: <see cref="CaptureStep.Keys"/> is the shortcut.</summary>
     Captured,
 
-    /// <summary>Escape on its own: the user gave up.</summary>
-    Cancelled,
-
     /// <summary>
-    /// A key that cannot be part of a shortcut was pressed. The gesture is
-    /// dropped and the capture listens again from scratch.
+    /// Escape on its own: the user gave up. Pressed with other keys, Escape is
+    /// just one more key of the shortcut.
     /// </summary>
-    Unsupported,
+    Cancelled,
 }
 
 /// <summary>Outcome of one keyboard event during a capture.</summary>
@@ -63,14 +60,6 @@ public sealed class HotkeyCapture
             return new CaptureStep(CaptureState.Cancelled, []);
         }
 
-        if (VirtualKeys.NameOf(virtualKey) is null)
-        {
-            // A letter or any other ordinary key. Accepting it would make it
-            // unusable for typing, which is never what the user meant.
-            Clear();
-            return new CaptureStep(CaptureState.Unsupported, []);
-        }
-
         _held.Add(virtualKey);
 
         if (!_pressed.Contains(virtualKey))
@@ -103,7 +92,7 @@ public sealed class HotkeyCapture
 
     private CaptureStep Listening() => new(CaptureState.Listening, Names());
 
-    private string[] Names() => [.. _pressed.Select(key => VirtualKeys.NameOf(key)!)];
+    private string[] Names() => [.. _pressed.Select(key => VirtualKeys.NameOf(key))];
 
     private void Clear()
     {

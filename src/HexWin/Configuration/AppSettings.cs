@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using HexWin.Input;
 
 namespace HexWin.Configuration;
 
@@ -206,21 +207,6 @@ public sealed class AppSettings
     /// five-second sentence in 0.17 s.</para>
     /// </summary>
     private static readonly string[] KnownProviders = ["cpu"];
-
-    /// <summary>
-    /// Keys allowed in a shortcut. Deliberately narrow: the Fn key is absent
-    /// because it is handled by the embedded controller of the keyboard and
-    /// emits no code Windows can see.
-    /// </summary>
-    private static readonly string[] KnownHotkeyNames =
-    [
-        "Ctrl", "LeftCtrl", "RightCtrl",
-        "Alt", "LeftAlt", "RightAlt",
-        "Shift", "LeftShift", "RightShift",
-        "Win", "LeftWin", "RightWin",
-        "CapsLock", "Space",
-        "F13", "F14", "F15", "F16", "F17", "F18", "F19", "F20", "F21", "F22", "F23", "F24",
-    ];
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -508,7 +494,7 @@ public sealed class AppSettings
             return [.. DefaultHotkey];
         }
 
-        string?[] canonical = [.. hotkey.Select(CanonicalHotkeyName)];
+        string?[] canonical = [.. hotkey.Select(VirtualKeys.Canonical)];
 
         // An unknown key invalidates the whole shortcut; it is never simply
         // dropped. Dropping a key WIDENS the combination instead of narrowing
@@ -522,8 +508,4 @@ public sealed class AppSettings
 
         return [.. canonical.OfType<string>().Distinct(StringComparer.Ordinal)];
     }
-
-    private static string? CanonicalHotkeyName(string? name) =>
-        KnownHotkeyNames.FirstOrDefault(
-            known => string.Equals(known, name?.Trim(), StringComparison.OrdinalIgnoreCase));
 }

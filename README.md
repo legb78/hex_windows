@@ -145,7 +145,8 @@ and the log folder. It follows the Windows light or dark theme, and takes the
 Windows 11 frame (round corners, Mica title bar) where the system offers it.
 
 - **The hotkey is captured, not typed**: click the button beside it, hold the
-  keys you want, release. The window names the side of each key — *Right
+  keys you want, release. Any key works: modifiers, letters, F1–F24, the
+  numpad, media keys. The window names the side of each key — *Right
   Shift*, not just *Shift* — and warns when a single key costs you something for
   typing. While it listens, the whole keyboard goes to the capture; Escape or a
   click elsewhere hands it back.
@@ -169,7 +170,7 @@ invalid value falls back to its default** rather than preventing startup.
 
 | Setting | What it does |
 |---------|--------------|
-| `hotkey` | Keys to hold. `Fn` cannot be used: it is handled by the keyboard controller and emits no code Windows can see. |
+| `hotkey` | Keys to hold: any key, by name (`RightShift`, `A`, `F5`, `MediaPlayPause`…) or by virtual-key code (`VK_E8`). `Fn` cannot be used: it is handled by the keyboard controller and emits no code Windows can see. |
 | `insertion` | `Paste` (clipboard, instant) or `Type` (simulated keystrokes, for apps that ignore pasting). |
 | `feedback` | What marks the start and end of a recording: `Both` (default), `Visual` (circle only), `Sound` (tones only), `None`. |
 | `feedbackColor` | `auto` to follow the tray icon colours, or `#RRGGBB` to force one. |

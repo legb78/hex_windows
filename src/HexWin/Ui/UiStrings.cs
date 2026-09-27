@@ -80,6 +80,9 @@ public sealed partial class UiStrings
 
     public required string CaveatCapsLock { get; init; }
 
+    /// <summary>Any other key alone, given as the user reads it.</summary>
+    public required Func<string, string> CaveatLoneKey { get; init; }
+
     // --- Settings window: frame -----------------------------------------------------
 
     public required string WindowTitle { get; init; }
@@ -118,8 +121,6 @@ public sealed partial class UiStrings
 
     /// <summary>The keys held so far during a capture, with the mark that more may come.</summary>
     public required Func<string, string> Holding { get; init; }
-
-    public required string CaptureRefused { get; init; }
 
     public required string SectionRecording { get; init; }
 

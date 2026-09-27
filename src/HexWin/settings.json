@@ -14,9 +14,12 @@
   // down, is only the language of HexWin's own windows and menus.
 
   // Keys to hold in order to dictate.
-  // Accepted values: Ctrl, LeftCtrl, RightCtrl, Alt, LeftAlt, RightAlt,
-  // Shift, LeftShift, RightShift, Win, LeftWin, RightWin, CapsLock, Space,
-  // F13 through F24.
+  // Any key: Ctrl, LeftCtrl, RightCtrl, Alt, LeftAlt, RightAlt, Shift,
+  // LeftShift, RightShift, Win, LeftWin, RightWin, CapsLock, Space, A to Z,
+  // 0 to 9, F1 to F24, Enter, Escape, Tab, Backspace, Insert, Delete, Home,
+  // End, PageUp, PageDown, Left, Up, Right, Down, Numpad0 to Numpad9,
+  // media keys (MediaPlayPause, VolumeMute...), punctuation (Oem1...), or
+  // any virtual-key code written VK_XX in hexadecimal.
   // Fn cannot be used: it is handled by the keyboard controller and emits no
   // code Windows can see.
   "hotkey": ["RightShift"],

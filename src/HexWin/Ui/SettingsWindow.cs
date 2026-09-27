@@ -567,11 +567,6 @@ internal sealed class SettingsWindow : Form
                 StopCapture();
                 break;
 
-            case CaptureState.Unsupported:
-                ShowHotkeyText(_text.CapturePrompt);
-                _hotkeyRow.SetDescription(_text.CaptureRefused);
-                break;
-
             case CaptureState.Listening:
             default:
                 ShowHotkeyText(step.Keys.Count == 0

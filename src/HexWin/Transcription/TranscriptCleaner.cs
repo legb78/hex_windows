@@ -17,6 +17,10 @@ namespace HexWin.Transcription;
 /// writes "vendredi?" the English way where French usage expects
 /// "vendredi ?".
 ///
+/// The edits the user speaks — hesitations, "efface ça" — are not handled
+/// here but in <see cref="SegmentJoiner"/>: "efface ça" may aim at a sentence
+/// from an earlier segment, already in the document.
+///
 /// A deliberately pure class: no dependency, entirely testable.
 /// </summary>
 public static partial class TranscriptCleaner

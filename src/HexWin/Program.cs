@@ -460,7 +460,10 @@ internal static class Program
                 .GetAwaiter()
                 .GetResult();
 
-            Console.WriteLine(result.Text.Length > 0 ? result.Text : "(rien d'exploitable)");
+            // Through the joiner, as in the application: the spoken edits are
+            // applied there.
+            string text = new SegmentJoiner().Next(result.Text, isLast: true).Text;
+            Console.WriteLine(text.Length > 0 ? text : "(rien d'exploitable)");
             Console.WriteLine();
             Console.WriteLine($"Transcrit en {result.Duration.TotalSeconds:F2} s");
 

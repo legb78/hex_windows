@@ -2,18 +2,30 @@ using System.Text.RegularExpressions;
 
 namespace HexWin.Transcription;
 
+/// <summary>What a segment changes in the document.</summary>
+/// <param name="Erase">Characters to delete first, backwards from the caret.</param>
+/// <param name="Text">Text to insert after that.</param>
+public readonly record struct SegmentInsertion(int Erase, string Text);
+
 /// <summary>
-/// Stitches the segments of a dictation inserted sentence by sentence, so a
-/// pause in the middle of a sentence does not leave a full stop behind it.
+/// Turns the segments of one dictation into what goes into the document: the
+/// edits the user spoke, and the stitching across pauses.
 ///
-/// <para>The engine transcribes each segment on its own and closes every one
-/// with a full stop and opens it with a capital: "Je voudrais parler." then
-/// "Avec le client.". Once inserted, that full stop cannot be taken back
-/// safely. So it is <b>held</b>: each segment goes in without its final full
-/// stop, and the next one decides. If it opens with a word that carries a
-/// sentence on — "avec", "and", "que"... — the full stop is dropped and that
-/// word lowered; otherwise the full stop goes in first. The last segment keeps
-/// its punctuation.</para>
+/// <para><b>Spoken edits.</b> Hesitations are dropped and "efface ça" removes
+/// the sentence before it, see <see cref="SpokenEdits"/>. When a dictation is
+/// inserted sentence by sentence, that sentence is often already typed: the
+/// user says it, pauses, then says "efface ça". The joiner keeps the text it
+/// inserted during the dictation, and answers with the number of characters
+/// to erase. Nothing typed before the dictation is ever touched.</para>
+///
+/// <para><b>Stitching.</b> The engine transcribes each segment on its own and
+/// closes every one with a full stop and opens it with a capital: "Je voudrais
+/// parler." then "Avec le client.". Once inserted, that full stop could only
+/// be taken back by erasing. So it is <b>held</b>: each segment goes in
+/// without its final full stop, and the next one decides. If it opens with a
+/// word that carries a sentence on — "avec", "and", "que"... — the full stop
+/// is dropped and that word lowered; otherwise the full stop goes in first.
+/// The last segment keeps its punctuation.</para>
 ///
 /// <para>Only words that almost never open a sentence count. Articles are left
 /// out: "Le train était en retard." starts a sentence far more often than it
@@ -24,30 +36,39 @@ namespace HexWin.Transcription;
 /// </summary>
 public sealed partial class SegmentJoiner
 {
-    private bool _started;
+    /// <summary>What this dictation has put in the document so far.</summary>
+    private string _document = string.Empty;
+
     private string _held = string.Empty;
 
-    /// <summary>
-    /// Returns the text to insert for a new segment.
-    /// </summary>
+    /// <param name="text">The cleaned transcription of the segment.</param>
     /// <param name="isLast">
     /// No segment will follow: its full stop is inserted rather than held.
     /// </param>
-    public string Next(string text, bool isLast)
+    public SegmentInsertion Next(string text, bool isLast)
     {
         ArgumentNullException.ThrowIfNull(text);
 
-        string joined = _started ? Join(text) : text;
-        _started = true;
+        (string edited, int earlierErasures) = SpokenEdits.Apply(text);
+        int erase = EraseSentences(earlierErasures);
+
+        if (!SpokenEdits.ContainsMeaning().IsMatch(edited))
+        {
+            return new SegmentInsertion(erase, string.Empty);
+        }
+
+        string joined = _document.Length == 0 ? edited : Join(edited);
         _held = string.Empty;
 
         if (!isLast && joined.EndsWith('.') && !joined.EndsWith("..", StringComparison.Ordinal))
         {
             _held = ".";
-            return joined[..^1];
+            joined = joined[..^1];
         }
 
-        return joined;
+        _document += joined;
+
+        return new SegmentInsertion(erase, joined);
     }
 
     /// <summary>
@@ -57,9 +78,36 @@ public sealed partial class SegmentJoiner
     public string Finish()
     {
         string held = _held;
+        _document += held;
         _held = string.Empty;
 
         return held;
+    }
+
+    /// <summary>
+    /// Takes the last sentences back out of what this dictation inserted, and
+    /// returns how many characters that removes. A held full stop was never
+    /// inserted: it simply goes with its sentence.
+    /// </summary>
+    private int EraseSentences(int count)
+    {
+        if (count == 0)
+        {
+            return 0;
+        }
+
+        string kept = _document;
+
+        for (int i = 0; i < count && kept.Length > 0; i++)
+        {
+            kept = SpokenEdits.WithoutLastSentence(kept);
+        }
+
+        int erased = _document.Length - kept.Length;
+        _document = kept;
+        _held = string.Empty;
+
+        return erased;
     }
 
     private string Join(string text)

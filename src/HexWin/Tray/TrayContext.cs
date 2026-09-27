@@ -418,7 +418,7 @@ internal sealed class TrayContext : ApplicationContext
             // sentence; the dictation ended on a pause instead.
             if (keepText && _joiner.Finish() is { Length: > 0 } held)
             {
-                Insert(held);
+                Apply(new SegmentInsertion(0, held));
             }
         }
         finally
@@ -467,7 +467,7 @@ internal sealed class TrayContext : ApplicationContext
 
             if (result.Text.Length > 0)
             {
-                Insert(_joiner.Next(result.Text, isLast));
+                Apply(_joiner.Next(result.Text, isLast));
             }
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException)
@@ -476,17 +476,28 @@ internal sealed class TrayContext : ApplicationContext
         }
     }
 
-    private void Insert(string text)
+    private void Apply(SegmentInsertion insertion)
     {
+        if (insertion.Erase == 0 && insertion.Text.Length == 0)
+        {
+            return;
+        }
+
         // Brings back the window the user was speaking into, if it is no
         // longer in the foreground. Does nothing if it has vanished, or if
         // Windows refuses the change: we insert anyway, into the current
         // window, rather than lose the dictation.
         _target?.Restore();
 
+        if (insertion.Erase > 0)
+        {
+            TextInjector.Erase(insertion.Erase);
+            _log.Write($"  → {insertion.Erase} caractères effacés à la demande");
+        }
+
         // Called on the interface thread: the clipboard requires an STA thread
         // initialised for OLE.
-        TextInjector.Insert(text, _settings.Insertion);
+        TextInjector.Insert(insertion.Text, _settings.Insertion);
     }
 
     // --- Interface ---------------------------------------------------------------

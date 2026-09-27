@@ -1,3 +1,5 @@
+using HexWin.Input;
+
 namespace HexWin.Ui;
 
 /// <summary>
@@ -11,13 +13,27 @@ namespace HexWin.Ui;
 /// </summary>
 public static class HotkeyText
 {
-    /// <summary>One key; a name the language does not know is shown as it is.</summary>
+    /// <summary>
+    /// One key. A punctuation key shows what it prints on the layout in use;
+    /// any other name the language does not know — "A", "F5", "VK_E2" — is
+    /// shown as it is.
+    /// </summary>
     public static string Describe(UiStrings text, string key)
     {
         ArgumentNullException.ThrowIfNull(text);
 
-        return text.KeyNames.TryGetValue(key, out string? label) ? label : key;
+        if (text.KeyNames.TryGetValue(key, out string? label))
+        {
+            return label;
+        }
+
+        return PrintedCharacter(key) ?? key;
     }
+
+    private static string? PrintedCharacter(string key) =>
+        key.StartsWith("Oem", StringComparison.OrdinalIgnoreCase) && VirtualKeys.Canonical(key) is not null
+            ? KeyboardLayout.CharacterOf(VirtualKeys.Resolve(key)[0])
+            : null;
 
     /// <summary>The whole shortcut, keys joined the way a keyboard chord is written.</summary>
     public static string Describe(UiStrings text, IEnumerable<string> keys) =>
@@ -30,7 +46,8 @@ public static class HotkeyText
     /// <para>Every key of the shortcut is swallowed while it is held, so a
     /// shortcut of one key costs that key for typing. Space alone is the case
     /// that matters: a writer cannot do without it. A lone Shift keeps the
-    /// other Shift for capitals, and says so.</para>
+    /// other Shift for capitals, and says so. Any other lone key is named, so
+    /// the user sees what they are giving up.</para>
     /// </summary>
     public static string? Caveat(UiStrings text, IReadOnlyList<string> keys)
     {
@@ -59,7 +76,16 @@ public static class HotkeyText
             "LEFTSHIFT" => text.CaveatLeftShift,
             "RIGHTSHIFT" => text.CaveatRightShift,
             "CAPSLOCK" => text.CaveatCapsLock,
-            _ => null,
+            _ => LoneKeyCaveat(text, keys[0]),
         };
     }
+
+    /// <summary>
+    /// Any other key alone stops doing what it did: typing, or its own
+    /// function. Keys that type nothing on their own cost nothing.
+    /// </summary>
+    private static string? LoneKeyCaveat(UiStrings text, string key) =>
+        VirtualKeys.Canonical(key) is null || VirtualKeys.Resolve(key).Any(VirtualKeys.TypesNothing)
+            ? null
+            : text.CaveatLoneKey(Describe(text, key));
 }

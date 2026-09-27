@@ -56,6 +56,43 @@ public class SpeechSegmenterTests
     }
 
     [Fact]
+    public void Loud_noise_the_detector_rejects_counts_as_a_pause()
+    {
+        // A voice detector hears a fan as silence, however loud it is: the
+        // pause is found where a level threshold would never see one.
+        var detector = new ScriptedDetector();
+        var segmenter = new SpeechSegmenter(Pause, detector);
+
+        Feed(segmenter, Repeat(Speech(), 4));
+        detector.Speaking = false;
+        byte[]? closed = Feed(segmenter, Repeat(Speech(), 10));
+
+        Assert.NotNull(closed);
+    }
+
+    [Fact]
+    public void Quiet_speech_the_detector_accepts_keeps_the_segment_open()
+    {
+        var segmenter = new SpeechSegmenter(Pause, new ScriptedDetector());
+
+        byte[]? closed = Feed(segmenter, Repeat(Silence(), 20));
+
+        Assert.Null(closed);
+        Assert.Equal(20 * Chunk, segmenter.PendingBytes);
+    }
+
+    private sealed class ScriptedDetector : ISpeechDetector
+    {
+        public bool Speaking { get; set; } = true;
+
+        public bool IsSpeech(ReadOnlySpan<byte> pcm) => Speaking;
+
+        public void Reset()
+        {
+        }
+    }
+
+    [Fact]
     public void A_shorter_gap_does_not_close_anything()
     {
         // Gaps between words are far shorter than a pause between sentences.

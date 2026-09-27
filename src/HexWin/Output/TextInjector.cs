@@ -54,6 +54,36 @@ internal sealed partial class TextInjector
     }
 
     /// <summary>
+    /// Deletes the last characters before the caret, one Backspace each: what
+    /// the dictation itself just inserted, when the user says "efface ça".
+    ///
+    /// <para>The hotkey may still be held while a dictation is inserted
+    /// sentence by sentence. Ctrl in particular is released first: with it,
+    /// each Backspace would take a whole word instead of a character.</para>
+    /// </summary>
+    public static void Erase(int characters)
+    {
+        if (characters <= 0)
+        {
+            return;
+        }
+
+        ReleaseStrayModifiers(ModifiersBeforeErasing);
+
+        Input[] inputs = new Input[characters * 2];
+
+        for (int i = 0; i < characters; i++)
+        {
+            inputs[2 * i] = NewVirtualKey(Backspace, keyUp: false);
+            inputs[(2 * i) + 1] = NewVirtualKey(Backspace, keyUp: true);
+        }
+
+        Send(inputs);
+    }
+
+    private const ushort Backspace = 0x08;
+
+    /// <summary>
     /// Pastes through the clipboard, then puts back whatever was there.
     ///
     /// Restoring matters: without it, every dictation would overwrite what the
@@ -143,9 +173,9 @@ internal sealed partial class TextInjector
     /// superfluous release is harmless, but there is no point cluttering the
     /// event queue.</para>
     /// </summary>
-    private static void ReleaseStrayModifiers()
+    private static void ReleaseStrayModifiers(int[] modifiers)
     {
-        int[] stray = [.. ModifiersToClear.Where(IsPhysicallyDown)];
+        int[] stray = [.. modifiers.Where(IsPhysicallyDown)];
 
         if (stray.Length == 0)
         {
@@ -171,13 +201,16 @@ internal sealed partial class TextInjector
         VirtualKeys.RightShift,
     ];
 
+    private static readonly int[] ModifiersBeforeErasing =
+        [.. ModifiersToClear, VirtualKeys.LeftControl, VirtualKeys.RightControl];
+
     /// <summary>The high bit marks a key that is currently held down.</summary>
     private static bool IsPhysicallyDown(int virtualKey) =>
         (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
 
     private static void SendPasteShortcut()
     {
-        ReleaseStrayModifiers();
+        ReleaseStrayModifiers(ModifiersToClear);
 
         Span<Input> inputs =
         [

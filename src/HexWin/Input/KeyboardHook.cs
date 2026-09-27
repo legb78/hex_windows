@@ -13,12 +13,19 @@ namespace HexWin.Input;
 /// and relay.
 ///
 /// <para><b>Hard constraint: never block inside the callback.</b> Windows
-/// grants the callback a deadline — <c>LowLevelHooksTimeout</c>, 5 s by
-/// default but often far less. Past that deadline the system uninstalls the
-/// hook <i>silently</i>: the shortcut stops responding without a single
-/// message, and only restarting the application brings it back. Subscribers
-/// must therefore return immediately and hand the work to a background
-/// thread.</para>
+/// grants the callback a deadline — <c>LowLevelHooksTimeout</c>, one second
+/// at most since Windows 10. Past it, Windows delivers the key <i>anyway</i>,
+/// whatever the callback answers later: a press we meant to swallow reaches
+/// the system, its release does not, and the key stays held for good. Past it
+/// too often, the system uninstalls the hook silently.</para>
+///
+/// <para>Hence the hook's own thread, which does nothing but decide. It used to
+/// live on the interface thread, which also pastes the text — with a 400 ms
+/// wait before restoring the clipboard — and opens the microphone: holding the
+/// shortcut while a segment was inserted let an auto-repeated Shift through,
+/// and the user typed in capitals after the dictation. Events are raised on the
+/// thread that created the hook, by posting to its synchronisation
+/// context.</para>
 /// </summary>
 [ExcludeFromCodeCoverage(Justification = "Win32 shell: a global keyboard hook cannot be triggered by a test, because Windows marks keystrokes produced by a program as injected.")]
 internal sealed partial class KeyboardHook : IDisposable
@@ -27,9 +34,7 @@ internal sealed partial class KeyboardHook : IDisposable
     private const int HcAction = 0;
 
     private const nint WmKeyDown = 0x0100;
-    private const nint WmKeyUp = 0x0101;
     private const nint WmSysKeyDown = 0x0104;
-    private const nint WmSysKeyUp = 0x0105;
 
     /// <summary>Marks the events we injected ourselves.</summary>
     private const uint LlkhfInjected = 0x10;
@@ -37,14 +42,19 @@ internal sealed partial class KeyboardHook : IDisposable
     private const uint InputKeyboard = 1;
     private const uint KeyEventKeyUp = 0x0002;
 
+    /// <summary>
+    /// Guards the detector and the capture, touched by the hook thread on
+    /// every key and by the interface thread when it swaps or resets them.
+    /// </summary>
+    private readonly Lock _gate = new();
+
+    /// <summary>Where the events are raised; null outside a message loop.</summary>
+    private readonly SynchronizationContext? _owner = SynchronizationContext.Current;
+
     private ChordDetector _detector;
 
-    /// <summary>
-    /// Offered every key while a shortcut is being captured, instead of the
-    /// detector. Answers false to hand the key back to Windows — and the
-    /// capture ends there. Null the rest of the time.
-    /// </summary>
-    private Func<int, bool, bool>? _captureObserver;
+    /// <summary>The capture under way, or null the rest of the time.</summary>
+    private CaptureTarget? _capture;
 
     /// <summary>
     /// Keys whose key-down went to a capture. Their key-up is swallowed too,
@@ -60,7 +70,13 @@ internal sealed partial class KeyboardHook : IDisposable
     /// </summary>
     private readonly HookProc _callback;
 
+    private Thread? _thread;
+
+    /// <summary>Runs work on the hook thread, where Windows requires the hook be set and removed.</summary>
+    private SynchronizationContext? _hookThread;
+
     private nint _hook;
+    private int _installError;
     private bool _disposed;
 
     /// <summary>
@@ -86,17 +102,26 @@ internal sealed partial class KeyboardHook : IDisposable
 
     public void Install()
     {
-        if (_hook != 0)
+        if (_thread is not null)
         {
             return;
         }
 
-        _hook = SetWindowsHookExW(WhKeyboardLowLevel, _callback, 0, 0);
+        using var ready = new ManualResetEventSlim();
+
+        _thread = new Thread(() => RunHookThread(ready))
+        {
+            IsBackground = true,
+            Name = "HexWin keyboard hook",
+        };
+        _thread.SetApartmentState(ApartmentState.STA);
+        _thread.Start();
+        ready.Wait();
 
         if (_hook == 0)
         {
             throw new InvalidOperationException(
-                $"Cannot install the keyboard hook (error {Marshal.GetLastWin32Error()}).");
+                $"Cannot install the keyboard hook (error {_installError}).");
         }
 
         // Locking the session interrupts the delivery of key-ups: without a
@@ -105,10 +130,30 @@ internal sealed partial class KeyboardHook : IDisposable
     }
 
     /// <summary>
+    /// A low-level hook is called on the thread that set it, and only while
+    /// that thread pumps messages: this one does nothing else.
+    /// </summary>
+    private void RunHookThread(ManualResetEventSlim ready)
+    {
+        var context = new WindowsFormsSynchronizationContext();
+        SynchronizationContext.SetSynchronizationContext(context);
+        _hookThread = context;
+
+        _hook = SetWindowsHookExW(WhKeyboardLowLevel, _callback, 0, 0);
+        _installError = Marshal.GetLastWin32Error();
+        bool installed = _hook != 0;
+        ready.Set();
+
+        if (installed)
+        {
+            Application.Run();
+        }
+    }
+
+    /// <summary>
     /// Puts a new shortcut in force without reinstalling the hook.
     ///
-    /// <para>Called on the interface thread, which is also the thread the hook
-    /// callback runs on: the swap cannot land in the middle of a keyboard
+    /// <para>The gate keeps the swap from landing in the middle of a keyboard
     /// event. The caller only swaps while no dictation is under way. The old
     /// detector is reset first, so a key it had swallowed is not held against
     /// the new one. Should one still be down, its key-up reaches Windows
@@ -119,16 +164,20 @@ internal sealed partial class KeyboardHook : IDisposable
     {
         ArgumentNullException.ThrowIfNull(detector);
 
-        _detector.Reset();
-        _detector = detector;
+        lock (_gate)
+        {
+            _detector.Reset();
+            _detector = detector;
+        }
     }
 
     /// <summary>
-    /// Offers every key to <paramref name="observer"/> — virtual code, and true
-    /// for a key-down — and swallows the ones it takes, until
-    /// <see cref="EndCapture"/>. A key it declines goes on to Windows untouched,
-    /// and ends the capture: that is how a capture left running behind a window
-    /// that lost the focus gives the keyboard back on the very next key,
+    /// Swallows every key while <paramref name="window"/> is in the foreground
+    /// and reports it to <paramref name="onKey"/> — virtual code, and true for
+    /// a key-down — until <see cref="EndCapture"/>. The first key-down pressed
+    /// elsewhere goes on to Windows untouched, ends the capture and calls
+    /// <paramref name="onLost"/>: that is how a capture left running behind a
+    /// window that lost the focus gives the keyboard back on the very next key,
     /// instead of eating what the user types elsewhere.
     ///
     /// <para>Swallowed, because the keys worth capturing all do something on
@@ -137,29 +186,42 @@ internal sealed partial class KeyboardHook : IDisposable
     /// detected meanwhile, so pressing the current one does not start a
     /// dictation into the settings window.</para>
     ///
-    /// <para>The whole keyboard is taken for the duration: the window ends the
-    /// capture on the first complete gesture, on Escape, and as soon as it
-    /// loses the focus.</para>
+    /// <para>Both callbacks are posted to the thread that created the hook,
+    /// never run on the hook thread.</para>
     /// </summary>
-    public void BeginCapture(Func<int, bool, bool> observer)
+    public void BeginCapture(nint window, Action<int, bool> onKey, Action onLost)
     {
-        ArgumentNullException.ThrowIfNull(observer);
+        ArgumentNullException.ThrowIfNull(onKey);
+        ArgumentNullException.ThrowIfNull(onLost);
 
-        if (_detector.Reset().Action == ChordAction.Cancel)
+        lock (_gate)
         {
-            Cancelled?.Invoke(this, EventArgs.Empty);
+            CancelDictation();
+            _capture = new CaptureTarget(window, onKey, onLost);
         }
-
-        _captureObserver = observer;
     }
 
-    public void EndCapture() => _captureObserver = null;
+    public void EndCapture()
+    {
+        lock (_gate)
+        {
+            _capture = null;
+        }
+    }
 
     private void OnSessionSwitch(object sender, SessionSwitchEventArgs e)
     {
+        lock (_gate)
+        {
+            CancelDictation();
+        }
+    }
+
+    private void CancelDictation()
+    {
         if (_detector.Reset().Action == ChordAction.Cancel)
         {
-            Cancelled?.Invoke(this, EventArgs.Empty);
+            Raise(Cancelled);
         }
     }
 
@@ -185,7 +247,7 @@ internal sealed partial class KeyboardHook : IDisposable
     /// <returns>True if a reinstall took place.</returns>
     public bool RefreshIfSilent(TimeSpan silence)
     {
-        if (_hook == 0 || _disposed)
+        if (_hook == 0 || _disposed || _hookThread is null)
         {
             return false;
         }
@@ -204,6 +266,14 @@ internal sealed partial class KeyboardHook : IDisposable
             return false;
         }
 
+        bool renewed = false;
+        _hookThread.Send(_ => renewed = Reinstall(), null);
+
+        return renewed;
+    }
+
+    private bool Reinstall()
+    {
         // The new hook goes in BEFORE the old one comes out: the other way
         // round, a keystroke landing between the two calls would be lost.
         nint renewed = SetWindowsHookExW(WhKeyboardLowLevel, _callback, 0, 0);
@@ -239,33 +309,55 @@ internal sealed partial class KeyboardHook : IDisposable
 
         bool keyDown = message is WmKeyDown or WmSysKeyDown;
         int virtualKey = (int)input.VirtualKey;
+        bool swallow;
 
+        lock (_gate)
+        {
+            swallow = TakeByCapture(virtualKey, keyDown) || Decide(virtualKey, keyDown);
+        }
+
+        // Returning 1 consumes the event: Windows will never see it.
+        return swallow ? 1 : CallNextHookEx(0, code, message, data);
+    }
+
+    /// <summary>True when the key belongs to a shortcut capture, and is swallowed.</summary>
+    private bool TakeByCapture(int virtualKey, bool keyDown)
+    {
         if (!keyDown && _capturedDown.Remove(virtualKey))
         {
-            _captureObserver?.Invoke(virtualKey, false);
-            return 1;
-        }
-
-        if (keyDown && _captureObserver is { } observer)
-        {
-            if (observer(virtualKey, true))
+            if (_capture is { } current)
             {
-                _capturedDown.Add(virtualKey);
-                return 1;
+                Post(() => current.OnKey(virtualKey, false));
             }
 
-            // Declined: the capture is over, and this key belongs to whatever
-            // the user is typing into. It falls through to the detector like
-            // any other.
-            _captureObserver = null;
+            return true;
         }
 
-        ChordDecision decision = message switch
+        if (!keyDown || _capture is not { } capture)
         {
-            WmKeyDown or WmSysKeyDown => _detector.OnKeyDown((int)input.VirtualKey),
-            WmKeyUp or WmSysKeyUp => _detector.OnKeyUp((int)input.VirtualKey),
-            _ => ChordDecision.Ignore,
-        };
+            return false;
+        }
+
+        if (GetForegroundWindow() != capture.Window)
+        {
+            // The capture is over, and this key belongs to whatever the user
+            // is typing into. It falls through to the detector like any other.
+            _capture = null;
+            Post(capture.OnLost);
+            return false;
+        }
+
+        _capturedDown.Add(virtualKey);
+        Post(() => capture.OnKey(virtualKey, true));
+
+        return true;
+    }
+
+    private bool Decide(int virtualKey, bool keyDown)
+    {
+        ChordDecision decision = keyDown
+            ? _detector.OnKeyDown(virtualKey)
+            : _detector.OnKeyUp(virtualKey, IsDownForWindows(virtualKey));
 
         if (decision.NeutralizeStartMenu)
         {
@@ -275,22 +367,49 @@ internal sealed partial class KeyboardHook : IDisposable
         switch (decision.Action)
         {
             case ChordAction.Start:
-                Started?.Invoke(this, EventArgs.Empty);
+                Raise(Started);
                 break;
             case ChordAction.Stop:
-                Stopped?.Invoke(this, EventArgs.Empty);
+                Raise(Stopped);
                 break;
             case ChordAction.Cancel:
-                Cancelled?.Invoke(this, EventArgs.Empty);
+                Raise(Cancelled);
                 break;
             case ChordAction.None:
             default:
                 break;
         }
 
-        // Returning 1 consumes the event: Windows will never see it.
-        return decision.Swallow ? 1 : CallNextHookEx(0, code, message, data);
+        return decision.Swallow;
     }
+
+    /// <summary>
+    /// Inside the callback, the asynchronous state still describes the key
+    /// before this event: down means Windows received a press of it.
+    /// </summary>
+    private static bool IsDownForWindows(int virtualKey) =>
+        (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
+
+    private void Raise(EventHandler? handler)
+    {
+        if (handler is not null)
+        {
+            Post(() => handler(this, EventArgs.Empty));
+        }
+    }
+
+    private void Post(Action action)
+    {
+        if (_owner is null)
+        {
+            action();
+            return;
+        }
+
+        _owner.Post(_ => action(), null);
+    }
+
+    private sealed record CaptureTarget(nint Window, Action<int, bool> OnKey, Action OnLost);
 
     /// <summary>
     /// Neutralises a Windows key the system has already received.
@@ -348,11 +467,12 @@ internal sealed partial class KeyboardHook : IDisposable
         _disposed = true;
         SystemEvents.SessionSwitch -= OnSessionSwitch;
 
-        if (_hook != 0)
+        _hookThread?.Post(_ =>
         {
             UnhookWindowsHookEx(_hook);
             _hook = 0;
-        }
+            Application.ExitThread();
+        }, null);
     }
 
     /// <summary>
@@ -453,4 +573,10 @@ internal sealed partial class KeyboardHook : IDisposable
 
     [LibraryImport("user32.dll", SetLastError = true)]
     private static partial uint SendInput(uint cInputs, ref Input pInputs, int cbSize);
+
+    [LibraryImport("user32.dll")]
+    private static partial short GetAsyncKeyState(int vKey);
+
+    [LibraryImport("user32.dll")]
+    private static partial nint GetForegroundWindow();
 }

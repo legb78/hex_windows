@@ -357,7 +357,7 @@ internal static class Program
         try
         {
             // No cutting here: the file must hold the whole recording.
-            using var recorder = new AudioRecorder(RecordingGuards.From(settings), TimeSpan.Zero);
+            using var recorder = new AudioRecorder(RecordingGuards.From(settings), TimeSpan.Zero, new LevelSpeechDetector());
 
             Console.WriteLine($"Enregistrement pendant {seconds} s — parlez maintenant.");
             recorder.Start();
@@ -447,10 +447,10 @@ internal static class Program
         try
         {
             Console.WriteLine($"Modèle    : {Path.GetFileName(modelPath)}");
-            Console.WriteLine($"Calcul    : {settings.Provider}, {settings.Threads} fils");
+            Console.WriteLine($"Calcul    : {settings.Provider}, {DecodingThreads.Resolve(settings.Threads)} fils");
             Console.WriteLine("Chargement du modèle...");
 
-            using var engine = ParakeetEngine.Load(modelPath, settings.Provider, settings.Threads);
+            using var engine = ParakeetEngine.Load(modelPath, settings.Provider, DecodingThreads.Resolve(settings.Threads));
 
             Console.WriteLine();
 
@@ -460,7 +460,10 @@ internal static class Program
                 .GetAwaiter()
                 .GetResult();
 
-            Console.WriteLine(result.Text.Length > 0 ? result.Text : "(rien d'exploitable)");
+            // Through the joiner, as in the application: the spoken edits are
+            // applied there.
+            string text = new SegmentJoiner().Next(result.Text, isLast: true).Text;
+            Console.WriteLine(text.Length > 0 ? text : "(rien d'exploitable)");
             Console.WriteLine();
             Console.WriteLine($"Transcrit en {result.Duration.TotalSeconds:F2} s");
 

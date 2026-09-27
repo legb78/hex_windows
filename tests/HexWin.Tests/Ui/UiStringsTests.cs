@@ -81,22 +81,20 @@ public class UiStringsTests
     [MemberData(nameof(Languages))]
     public void Every_key_a_capture_can_produce_has_a_name(UiStrings text)
     {
-        int[] capturable =
-        [
-            VirtualKeys.LeftControl, VirtualKeys.RightControl,
-            VirtualKeys.LeftMenu, VirtualKeys.RightMenu,
-            VirtualKeys.LeftShift, VirtualKeys.RightShift,
-            VirtualKeys.LeftWindows, VirtualKeys.RightWindows,
-            VirtualKeys.CapsLock, VirtualKeys.Space,
-        ];
-
-        // F13 to F24 are named as they are; everything else needs a word.
-        string[] unnamed = [.. capturable
-            .Select(key => VirtualKeys.NameOf(key)!)
-            .Where(name => !text.KeyNames.ContainsKey(name))];
+        // Letters, digits, function keys and raw codes read well as they
+        // are; punctuation keys show what they print on the layout in use.
+        string[] unnamed = [.. Enumerable.Range(1, 0xFF)
+            .Select(VirtualKeys.NameOf)
+            .Where(name => !ShownAsItIs(name) && !text.KeyNames.ContainsKey(name))];
 
         Assert.Empty(unnamed);
     }
+
+    private static bool ShownAsItIs(string name) =>
+        name.Length == 1
+        || name.StartsWith("VK_", StringComparison.Ordinal)
+        || name.StartsWith("Oem", StringComparison.Ordinal)
+        || (name[0] == 'F' && int.TryParse(name.AsSpan(1), CultureInfo.InvariantCulture, out _));
 
     [Theory]
     [MemberData(nameof(Languages))]

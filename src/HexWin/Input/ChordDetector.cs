@@ -147,14 +147,35 @@ public sealed class ChordDetector
             NeutralizeStartMenu: WindowsKeyAlreadyDelivered(virtualKey));
     }
 
-    public ChordDecision OnKeyUp(int virtualKey)
+    /// <param name="virtualKey">The key released.</param>
+    /// <param name="pressReachedWindows">
+    /// True when Windows believes the key is down. For a key whose press we
+    /// swallowed, that means a press got through anyway: Windows delivers the
+    /// key itself when the hook callback misses its deadline, whatever the
+    /// callback answers later. Swallowing the release then would leave the key
+    /// held for good — the capitals that follow a dictation on Shift.
+    /// </param>
+    public ChordDecision OnKeyUp(int virtualKey, bool pressReachedWindows = false)
     {
-        bool swallow = _swallowed.Remove(virtualKey);
+        bool wasSwallowed = _swallowed.Remove(virtualKey);
+        bool leaked = wasSwallowed && pressReachedWindows;
+
+        // A leaked Windows key is still swallowed, but released by the
+        // neutral key: let through on its own, the release would open the
+        // Start menu.
+        bool neutralize = leaked && VirtualKeys.IsWindowsKey(virtualKey);
+        bool swallow = wasSwallowed && (!leaked || neutralize);
+
+        return ReleaseSlot(virtualKey) with { Swallow = swallow, NeutralizeStartMenu = neutralize };
+    }
+
+    private ChordDecision ReleaseSlot(int virtualKey)
+    {
         int slot = FindSatisfiedSlot(virtualKey);
 
         if (slot < 0)
         {
-            return new ChordDecision(ChordAction.None, swallow);
+            return ChordDecision.Ignore;
         }
 
         _satisfiedBy[slot] = 0;
@@ -170,11 +191,11 @@ public sealed class ChordDetector
 
         if (!IsActive)
         {
-            return new ChordDecision(ChordAction.None, swallow);
+            return ChordDecision.Ignore;
         }
 
         IsActive = false;
-        return new ChordDecision(ChordAction.Stop, swallow);
+        return new ChordDecision(ChordAction.Stop, Swallow: false);
     }
 
     /// <summary>

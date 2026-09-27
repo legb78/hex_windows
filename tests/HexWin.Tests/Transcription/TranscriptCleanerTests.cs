@@ -175,6 +175,25 @@ public class TranscriptCleanerTests
         Assert.Equal(dictated, TranscriptCleaner.Clean(dictated));
     }
 
+    [Theory]
+    [InlineData("Are you coming on Friday?")]
+    [InlineData("What a mess!")]
+    [InlineData("Here is the list: eggs, milk.")]
+    [InlineData("Really?")]
+    public void An_english_dictation_keeps_its_own_typography(string dictated)
+    {
+        // The engine is multilingual: "Friday ?" would be a typo in English.
+        Assert.Equal(dictated, TranscriptCleaner.Clean(dictated));
+    }
+
+    [Theory]
+    [InlineData("Vendredi?", "Vendredi ?")]
+    [InlineData("Déjà?", "Déjà ?")]
+    public void A_sentence_with_no_clue_to_its_language_is_treated_as_french(string raw, string expected)
+    {
+        Assert.Equal(expected, TranscriptCleaner.Clean(raw));
+    }
+
     [Fact]
     public void A_space_already_present_is_not_doubled()
     {

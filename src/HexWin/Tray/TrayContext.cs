@@ -9,6 +9,7 @@ using HexWin.Input;
 using HexWin.Output;
 using HexWin.Transcription;
 using HexWin.Ui;
+using NAudio;
 
 namespace HexWin.Tray;
 
@@ -58,6 +59,12 @@ internal sealed class TrayContext : ApplicationContext
     /// <summary>Segments seen so far in the current dictation.</summary>
     private int _segmentCount;
 
+    /// <summary>Stitches the segments of the current dictation back together.</summary>
+    private SegmentJoiner _joiner = new();
+
+    /// <summary>The microphone is listening to the tail of a released dictation.</summary>
+    private bool _ending;
+
     private SettingsWindow? _settingsWindow;
 
     // The menu entries a saved configuration has to bring back in line.
@@ -95,14 +102,15 @@ internal sealed class TrayContext : ApplicationContext
         _engines = new EngineHost(
             modelPath,
             settings.Provider,
-            settings.Threads,
+            DecodingThreads.Resolve(settings.Threads),
             IdlePolicy.FromMinutes(settings.UnloadAfterMinutes),
             _log);
 
         _recorder = new AudioRecorder(
             RecordingGuards.From(settings),
-            settings.SegmentPause());
-        _recorder.SegmentReady += (_, audio) => _uiThread.Post(_ => Enqueue(audio), null);
+            settings.SegmentPause(),
+            CreateSpeechDetector(modelPath));
+        _recorder.SegmentReady += (_, audio) => _uiThread.Post(_ => Enqueue(audio, isLast: false), null);
         _recorder.MaximumReached += (_, _) => _uiThread.Post(_ => OnDictationEnded(), null);
 
         _hook = new KeyboardHook(new ChordDetector(settings.Hotkey));
@@ -118,9 +126,8 @@ internal sealed class TrayContext : ApplicationContext
         _coordinator.StateChanged += (_, state) => ApplyState(state);
         ApplyState(_coordinator.State);
 
-        // The Windows Forms timer runs on the interface thread, the very one
-        // that holds the hook: the reinstall therefore happens where Windows
-        // requires it.
+        // The hook hands the reinstall over to its own thread, where Windows
+        // requires it to happen.
         _hookWatchdog = new System.Windows.Forms.Timer { Interval = (int)WatchdogInterval.TotalMilliseconds };
         _hookWatchdog.Tick += (_, _) => WatchHook();
 
@@ -226,7 +233,7 @@ internal sealed class TrayContext : ApplicationContext
                 _log.Write("modèle vérifié, chargement différé à la première dictée");
             }
 
-            _log.Write($"prêt ({_settings.Provider}, {_settings.Threads} fils)");
+            _log.Write($"prêt ({_settings.Provider}, {DecodingThreads.Resolve(_settings.Threads)} fils)");
             _coordinator.MarkReady();
         }
         catch (Exception ex) when (ex is FileNotFoundException or InvalidOperationException or DllNotFoundException)
@@ -236,6 +243,25 @@ internal sealed class TrayContext : ApplicationContext
 
             ShowBalloon(T.BalloonModelMissing, T.BalloonModelMissingBody(T.ModelProblem(ex)));
         }
+    }
+
+    /// <summary>
+    /// Silero VAD when its model sits next to the engine's folder, as
+    /// get-model.ps1 installs it; the level threshold otherwise, which was the
+    /// only detector before and still works in a quiet room.
+    /// </summary>
+    private ISpeechDetector CreateSpeechDetector(string modelPath)
+    {
+        string modelsDirectory = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(modelPath)) ?? modelPath;
+        string file = Path.Combine(modelsDirectory, SileroSpeechDetector.FileName);
+
+        if (!File.Exists(file))
+        {
+            _log.Write($"détecteur de parole absent ({file}) : pauses repérées au volume sonore");
+            return new LevelSpeechDetector();
+        }
+
+        return new SileroSpeechDetector(file);
     }
 
     // --- One dictation, end to end ----------------------------------------------
@@ -283,6 +309,7 @@ internal sealed class TrayContext : ApplicationContext
         // time to switch elsewhere, and to dump unwanted text there.
         _target = TargetWindow.Capture();
         _segmentCount = 0;
+        _joiner = new SegmentJoiner();
 
         // The reload starts here, on the key press, not on the release: it runs
         // while the user is speaking. On a two-second sentence, the three
@@ -293,6 +320,39 @@ internal sealed class TrayContext : ApplicationContext
 
     private void OnDictationEnded()
     {
+        // The release and the ceiling can both land during the tail.
+        if (_coordinator.State != DictationState.Recording || _ending)
+        {
+            return;
+        }
+
+        _ = EndDictationAsync();
+    }
+
+    private async Task EndDictationAsync()
+    {
+        _ending = true;
+        RecordedAudio? remainder = null;
+
+        try
+        {
+            // The state stays on Recording while the microphone listens to the
+            // tail: the end tone, played on leaving it, would otherwise be
+            // recorded over the last word when the cue goes through speakers.
+            remainder = await _recorder.StopAsync().ConfigureAwait(true);
+        }
+        catch (MmException ex)
+        {
+            // Nobody awaits this task: an escaping exception would leave the
+            // state on Recording for good, and the hotkey dead.
+            _log.Write($"arrêt du micro impossible : {ex.Message}");
+        }
+        finally
+        {
+            _ending = false;
+        }
+
+        // False when the dictation was cancelled during the tail.
         if (!_coordinator.TryStartTranscribing())
         {
             return;
@@ -300,12 +360,12 @@ internal sealed class TrayContext : ApplicationContext
 
         // Null when the press was too brief, or when what is left after the
         // last pause holds no speech.
-        if (_recorder.Stop() is { } remainder)
+        if (remainder is { } audio)
         {
-            Enqueue(remainder);
+            Enqueue(audio, isLast: true);
         }
 
-        _ = FinishAsync();
+        await FinishAsync(keepText: true).ConfigureAwait(true);
     }
 
     private void OnDictationCancelled()
@@ -314,27 +374,35 @@ internal sealed class TrayContext : ApplicationContext
         {
             _recorder.Stop();
             _log.Write("dictée annulée");
-            _ = FinishAsync();
+            _ = FinishAsync(keepText: false);
         }
     }
 
-    private void Enqueue(RecordedAudio audio)
+    /// <param name="isLast">
+    /// The remainder handed back when the recording stopped: no segment will
+    /// follow it.
+    /// </param>
+    private void Enqueue(RecordedAudio audio, bool isLast)
     {
         _segmentCount++;
-        _segments = TranscribeAfterAsync(_segments, audio, _segmentCount);
+        _segments = TranscribeAfterAsync(_segments, audio, _segmentCount, isLast);
     }
 
-    private async Task TranscribeAfterAsync(Task previous, RecordedAudio audio, int ordinal)
+    private async Task TranscribeAfterAsync(Task previous, RecordedAudio audio, int ordinal, bool isLast)
     {
         await previous.ConfigureAwait(true);
-        await TranscribeAsync(audio, ordinal).ConfigureAwait(true);
+        await TranscribeAsync(audio, ordinal, isLast).ConfigureAwait(true);
     }
 
     /// <summary>
     /// Waits for every segment to be inserted, then puts the application back
     /// to rest.
     /// </summary>
-    private async Task FinishAsync()
+    /// <param name="keepText">
+    /// False for a cancelled dictation: the full stop the joiner may still
+    /// hold is not inserted after text the user abandoned.
+    /// </param>
+    private async Task FinishAsync(bool keepText)
     {
         // A segment closed in the last instants of the recording may still be
         // on its way to this thread. Yielding once lets it join the queue
@@ -345,6 +413,13 @@ internal sealed class TrayContext : ApplicationContext
         try
         {
             await _segments.ConfigureAwait(true);
+
+            // Held back from a segment in case the next one continued its
+            // sentence; the dictation ended on a pause instead.
+            if (keepText && _joiner.Finish() is { Length: > 0 } held)
+            {
+                Apply(new SegmentInsertion(0, held));
+            }
         }
         finally
         {
@@ -353,7 +428,7 @@ internal sealed class TrayContext : ApplicationContext
         }
     }
 
-    private async Task TranscribeAsync(RecordedAudio audio, int ordinal)
+    private async Task TranscribeAsync(RecordedAudio audio, int ordinal, bool isLast)
     {
         try
         {
@@ -392,23 +467,37 @@ internal sealed class TrayContext : ApplicationContext
 
             if (result.Text.Length > 0)
             {
-                // Brings back the window the user was speaking into, if it is
-                // no longer in the foreground. Does nothing if it has vanished,
-                // or if Windows refuses the change: we insert anyway, into the
-                // current window, rather than lose the dictation.
-                _target?.Restore();
-
-                // Back on the interface thread thanks to ConfigureAwait(true):
-                // the clipboard requires an STA thread initialised for OLE.
-                // A segment that follows another is separated from it by a
-                // space, as the engine would have put between two sentences.
-                TextInjector.Insert(ordinal == 1 ? result.Text : " " + result.Text, _settings.Insertion);
+                Apply(_joiner.Next(result.Text, isLast));
             }
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException)
         {
             _log.Write($"échec de la transcription : {ex.Message}");
         }
+    }
+
+    private void Apply(SegmentInsertion insertion)
+    {
+        if (insertion.Erase == 0 && insertion.Text.Length == 0)
+        {
+            return;
+        }
+
+        // Brings back the window the user was speaking into, if it is no
+        // longer in the foreground. Does nothing if it has vanished, or if
+        // Windows refuses the change: we insert anyway, into the current
+        // window, rather than lose the dictation.
+        _target?.Restore();
+
+        if (insertion.Erase > 0)
+        {
+            TextInjector.Erase(insertion.Erase);
+            _log.Write($"  → {insertion.Erase} caractères effacés à la demande");
+        }
+
+        // Called on the interface thread: the clipboard requires an STA thread
+        // initialised for OLE.
+        TextInjector.Insert(insertion.Text, _settings.Insertion);
     }
 
     // --- Interface ---------------------------------------------------------------

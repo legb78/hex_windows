@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using HexWin.Input;
 
 namespace HexWin.Configuration;
 
@@ -93,9 +94,8 @@ public sealed class AppSettings
     public string Provider { get; set; } = DefaultProvider;
 
     /// <summary>
-    /// Threads allotted to decoding. Past a handful the gain collapses: the
-    /// model is small and synchronisation costs more than the parallelism
-    /// brings.
+    /// Threads allotted to decoding. Zero, the default, picks one per
+    /// physical core; see <see cref="Transcription.DecodingThreads"/>.
     /// </summary>
     public int Threads { get; set; } = DefaultThreads;
 
@@ -148,7 +148,7 @@ public sealed class AppSettings
 
     private const string DefaultModelPath = "models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8";
     private const string DefaultProvider = "cpu";
-    private const int DefaultThreads = 4;
+    private const int DefaultThreads = 0;
     private const int DefaultUnloadAfterMinutes = 5;
 
     /// <summary>
@@ -206,21 +206,6 @@ public sealed class AppSettings
     /// five-second sentence in 0.17 s.</para>
     /// </summary>
     private static readonly string[] KnownProviders = ["cpu"];
-
-    /// <summary>
-    /// Keys allowed in a shortcut. Deliberately narrow: the Fn key is absent
-    /// because it is handled by the embedded controller of the keyboard and
-    /// emits no code Windows can see.
-    /// </summary>
-    private static readonly string[] KnownHotkeyNames =
-    [
-        "Ctrl", "LeftCtrl", "RightCtrl",
-        "Alt", "LeftAlt", "RightAlt",
-        "Shift", "LeftShift", "RightShift",
-        "Win", "LeftWin", "RightWin",
-        "CapsLock", "Space",
-        "F13", "F14", "F15", "F16", "F17", "F18", "F19", "F20", "F21", "F22", "F23", "F24",
-    ];
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -459,7 +444,8 @@ public sealed class AppSettings
 
         // Zero stays allowed: that is how the cutting is turned off.
         PauseMilliseconds = Math.Clamp(PauseMilliseconds, 0, MaxPauseMilliseconds);
-        Threads = Math.Clamp(Threads, 1, MaxThreads);
+        // Zero stays allowed: that is how the count is left to the machine.
+        Threads = Math.Clamp(Threads, 0, MaxThreads);
 
         // Zero stays allowed: that is how the model is kept resident.
         UnloadAfterMinutes = Math.Clamp(UnloadAfterMinutes, 0, MaxUnloadAfterMinutes);
@@ -508,7 +494,7 @@ public sealed class AppSettings
             return [.. DefaultHotkey];
         }
 
-        string?[] canonical = [.. hotkey.Select(CanonicalHotkeyName)];
+        string?[] canonical = [.. hotkey.Select(VirtualKeys.Canonical)];
 
         // An unknown key invalidates the whole shortcut; it is never simply
         // dropped. Dropping a key WIDENS the combination instead of narrowing
@@ -522,8 +508,4 @@ public sealed class AppSettings
 
         return [.. canonical.OfType<string>().Distinct(StringComparer.Ordinal)];
     }
-
-    private static string? CanonicalHotkeyName(string? name) =>
-        KnownHotkeyNames.FirstOrDefault(
-            known => string.Equals(known, name?.Trim(), StringComparison.OrdinalIgnoreCase));
 }

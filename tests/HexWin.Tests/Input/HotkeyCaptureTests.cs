@@ -7,8 +7,8 @@ namespace HexWin.Tests.Input;
 /// <summary>
 /// The capture reads a gesture — press, hold, let go — into the names
 /// settings.json accepts. Each case below is one a user produces without
-/// thinking: a key-up left over from the click that started the capture, a
-/// letter pressed by mistake, fingers leaving the keys out of order.
+/// thinking: a key-up left over from the click that started the capture,
+/// Escape pressed to give up, fingers leaving the keys out of order.
 /// </summary>
 public class HotkeyCaptureTests
 {
@@ -108,41 +108,35 @@ public class HotkeyCaptureTests
     }
 
     [Fact]
-    public void Escape_inside_a_gesture_is_an_unsupported_key_not_a_cancel()
+    public void Escape_inside_a_gesture_is_one_more_key_not_a_cancel()
     {
         var capture = new HotkeyCapture();
         capture.OnKeyDown(VirtualKeys.LeftControl);
 
-        Assert.Equal(CaptureState.Unsupported, capture.OnKeyDown(Escape).State);
+        Assert.Equal(CaptureState.Listening, capture.OnKeyDown(Escape).State);
+
+        capture.OnKeyUp(Escape);
+        Assert.Equal(["LeftCtrl", "Escape"], capture.OnKeyUp(VirtualKeys.LeftControl).Keys);
     }
 
     [Fact]
-    public void An_ordinary_key_is_refused_and_the_gesture_dropped()
-    {
-        var capture = new HotkeyCapture();
-        capture.OnKeyDown(VirtualKeys.LeftControl);
-
-        CaptureStep refused = capture.OnKeyDown(KeyA);
-        Assert.Equal(CaptureState.Unsupported, refused.State);
-        Assert.Empty(refused.Keys);
-
-        // Letting go of what was held finishes nothing: that gesture is gone.
-        Assert.Equal(CaptureState.Listening, capture.OnKeyUp(KeyA).State);
-        Assert.Equal(CaptureState.Listening, capture.OnKeyUp(VirtualKeys.LeftControl).State);
-    }
-
-    [Fact]
-    public void After_a_refusal_the_next_gesture_is_captured_from_scratch()
+    public void A_letter_with_a_modifier_is_captured()
     {
         var capture = new HotkeyCapture();
         capture.OnKeyDown(VirtualKeys.LeftControl);
         capture.OnKeyDown(KeyA);
         capture.OnKeyUp(KeyA);
-        capture.OnKeyUp(VirtualKeys.LeftControl);
 
-        capture.OnKeyDown(VirtualKeys.RightShift);
+        Assert.Equal(["LeftCtrl", "A"], capture.OnKeyUp(VirtualKeys.LeftControl).Keys);
+    }
 
-        Assert.Equal(["RightShift"], capture.OnKeyUp(VirtualKeys.RightShift).Keys);
+    [Fact]
+    public void A_key_with_no_name_is_captured_by_its_code()
+    {
+        var capture = new HotkeyCapture();
+        capture.OnKeyDown(0xE8);
+
+        Assert.Equal(["VK_E8"], capture.OnKeyUp(0xE8).Keys);
     }
 
     [Fact]
@@ -150,17 +144,10 @@ public class HotkeyCaptureTests
     {
         // A capture the file would then replace by its default would look
         // like a save that did nothing.
-        int[] supported =
-        [
-            VirtualKeys.LeftControl, VirtualKeys.RightControl,
-            VirtualKeys.LeftMenu, VirtualKeys.RightMenu,
-            VirtualKeys.LeftShift, VirtualKeys.RightShift,
-            VirtualKeys.LeftWindows, VirtualKeys.RightWindows,
-            VirtualKeys.CapsLock, VirtualKeys.Space,
-            VirtualKeys.F13, VirtualKeys.F13 + 11,
-        ];
+        // Escape alone cancels the capture instead.
+        IEnumerable<int> capturable = Enumerable.Range(1, 0xFF).Where(key => key != Escape);
 
-        foreach (int key in supported)
+        foreach (int key in capturable)
         {
             var capture = new HotkeyCapture();
             capture.OnKeyDown(key);

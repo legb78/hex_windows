@@ -22,6 +22,7 @@ public readonly record struct RecordedAudio(byte[] Wav, TimeSpan Duration);
 public sealed class AudioRecorder : IDisposable
 {
     private readonly RecordingGuards _guards;
+    private readonly ISpeechDetector _detector;
     private readonly Lock _sync = new();
 
     private WaveInEvent? _device;
@@ -30,9 +31,14 @@ public sealed class AudioRecorder : IDisposable
     private bool _maximumReached;
 
     /// <param name="pause">Silence that closes a segment; zero to never cut.</param>
-    public AudioRecorder(RecordingGuards guards, TimeSpan pause)
+    /// <param name="detector">
+    /// Tells speech from silence to find the pauses. The recorder owns it and
+    /// disposes of it.
+    /// </param>
+    public AudioRecorder(RecordingGuards guards, TimeSpan pause, ISpeechDetector detector)
     {
         _guards = guards;
+        _detector = detector;
         Pause = pause;
     }
 
@@ -91,7 +97,8 @@ public sealed class AudioRecorder : IDisposable
 
             _maximumReached = false;
             _received = 0;
-            _segmenter = new SpeechSegmenter(Pause);
+            _detector.Reset();
+            _segmenter = new SpeechSegmenter(Pause, _detector);
 
             var device = new WaveInEvent
             {
@@ -114,9 +121,67 @@ public sealed class AudioRecorder : IDisposable
     }
 
     /// <summary>
-    /// Closes the microphone and returns what was not yet cut, or <c>null</c>
-    /// if the press was too brief to hold speech or nothing worth transcribing
-    /// is left.
+    /// Ends a dictation without losing its last word, then returns what
+    /// <see cref="Stop"/> would.
+    ///
+    /// <para>Two losses to avoid. People release the key as they say the last
+    /// syllable, not after it: the microphone therefore keeps listening for
+    /// <see cref="Tail"/> past the release. And the device still holds the
+    /// buffer it was filling: stopping it hands that buffer back, but only
+    /// through <see cref="WaveInEvent.DataAvailable"/>, after
+    /// <see cref="WaveInEvent.StopRecording"/> has returned. Closing at once,
+    /// as <see cref="Stop"/> does, would throw it away.</para>
+    ///
+    /// <para>Returns <c>null</c> if the recording was stopped or replaced by
+    /// someone else in the meantime — a cancellation during the tail.</para>
+    /// </summary>
+    public async Task<RecordedAudio?> StopAsync()
+    {
+        WaveInEvent? device;
+
+        lock (_sync)
+        {
+            device = _device;
+        }
+
+        if (device is null)
+        {
+            return null;
+        }
+
+        await Task.Delay(Tail).ConfigureAwait(false);
+
+        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        lock (_sync)
+        {
+            if (_device != device)
+            {
+                return null;
+            }
+
+            device.RecordingStopped += (_, _) => stopped.TrySetResult();
+            device.StopRecording();
+        }
+
+        // RecordingStopped is posted to the thread that created the device,
+        // the interface thread: it is free, since the caller awaits us. The
+        // timeout only guards against a driver that never answers.
+        await Task.WhenAny(stopped.Task, Task.Delay(FlushTimeout)).ConfigureAwait(false);
+
+        return Stop();
+    }
+
+    /// <summary>Listening kept up after the key is released.</summary>
+    private static readonly TimeSpan Tail = TimeSpan.FromMilliseconds(100);
+
+    private static readonly TimeSpan FlushTimeout = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>
+    /// Closes the microphone at once and returns what was not yet cut, or
+    /// <c>null</c> if the press was too brief to hold speech or nothing worth
+    /// transcribing is left. The audio still in the device is dropped: fine to
+    /// abandon a dictation, not to finish one — see <see cref="StopAsync"/>.
     /// </summary>
     public RecordedAudio? Stop()
     {
@@ -214,5 +279,7 @@ public sealed class AudioRecorder : IDisposable
 
             _segmenter = null;
         }
+
+        (_detector as IDisposable)?.Dispose();
     }
 }

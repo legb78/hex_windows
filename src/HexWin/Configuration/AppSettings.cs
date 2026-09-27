@@ -94,9 +94,8 @@ public sealed class AppSettings
     public string Provider { get; set; } = DefaultProvider;
 
     /// <summary>
-    /// Threads allotted to decoding. Past a handful the gain collapses: the
-    /// model is small and synchronisation costs more than the parallelism
-    /// brings.
+    /// Threads allotted to decoding. Zero, the default, picks one per
+    /// physical core; see <see cref="Transcription.DecodingThreads"/>.
     /// </summary>
     public int Threads { get; set; } = DefaultThreads;
 
@@ -149,7 +148,7 @@ public sealed class AppSettings
 
     private const string DefaultModelPath = "models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8";
     private const string DefaultProvider = "cpu";
-    private const int DefaultThreads = 4;
+    private const int DefaultThreads = 0;
     private const int DefaultUnloadAfterMinutes = 5;
 
     /// <summary>
@@ -445,7 +444,8 @@ public sealed class AppSettings
 
         // Zero stays allowed: that is how the cutting is turned off.
         PauseMilliseconds = Math.Clamp(PauseMilliseconds, 0, MaxPauseMilliseconds);
-        Threads = Math.Clamp(Threads, 1, MaxThreads);
+        // Zero stays allowed: that is how the count is left to the machine.
+        Threads = Math.Clamp(Threads, 0, MaxThreads);
 
         // Zero stays allowed: that is how the model is kept resident.
         UnloadAfterMinutes = Math.Clamp(UnloadAfterMinutes, 0, MaxUnloadAfterMinutes);

@@ -179,7 +179,7 @@ invalid value falls back to its default** rather than preventing startup.
 | `feedbackTopMargin` | Pixels between the circle and the top of the screen. |
 | `modelPath` | Folder holding the Parakeet model, relative to the executable. |
 | `provider` | `cpu`, the only one available: the published native libraries are built for CPU only. |
-| `threads` | Threads allocated to decoding. |
+| `threads` | Threads allocated to decoding. `0`, the default, picks one per physical core, up to 8. |
 | `minRecordingMilliseconds` | Below this, the keypress is treated as accidental. |
 | `maxRecordingSeconds` | Stops recording if the key stays held. |
 | `segmentation` | `true` inserts a long dictation sentence by sentence, while you keep talking. `false` (default) inserts everything at release. |

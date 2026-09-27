@@ -175,7 +175,7 @@ public sealed partial class UiStrings
         ModelUnusable = reason => $"This folder does not hold a usable model.\n\n{reason}",
         SectionPerformance = "Performance",
         ThreadsTitle = "Threads",
-        ThreadsHint = "Beyond a few, the gain collapses.",
+        ThreadsHint = "Auto uses one per physical core. Beyond a few, the gain collapses.",
         UnloadTitle = "Free memory after",
         UnloadHint = "The model takes about 1 GB.",
 

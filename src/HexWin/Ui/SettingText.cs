@@ -83,10 +83,14 @@ public static class SettingText
         return text.Percent((int)Math.Round(value * 100 / 255.0));
     }
 
-    public static string Threads(UiStrings text, int value)
+    /// <summary>
+    /// A thread count; zero is the automatic setting, shown with the count it
+    /// resolves to on this machine.
+    /// </summary>
+    public static string Threads(UiStrings text, int value, int automatic)
     {
         ArgumentNullException.ThrowIfNull(text);
 
-        return text.ThreadCount(value);
+        return value == 0 ? $"Auto ({text.ThreadCount(automatic)})" : text.ThreadCount(value);
     }
 }

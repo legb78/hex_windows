@@ -64,9 +64,9 @@
   // phrase in 0.17 s.
   "provider": "cpu",
 
-  // Threads allocated to decoding. Past a handful the gain collapses: the
-  // model is small and synchronisation costs more than parallelism returns.
-  "threads": 4,
+  // Threads allocated to decoding. 0 picks one per physical core, up to 8:
+  // past a handful the gain collapses, the model being small.
+  "threads": 0,
 
   // "Paste" : clipboard then Ctrl+V (instant).
   // "Type"  : simulated keystrokes, for applications that ignore pasting.

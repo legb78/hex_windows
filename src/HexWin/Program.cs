@@ -447,10 +447,10 @@ internal static class Program
         try
         {
             Console.WriteLine($"Modèle    : {Path.GetFileName(modelPath)}");
-            Console.WriteLine($"Calcul    : {settings.Provider}, {settings.Threads} fils");
+            Console.WriteLine($"Calcul    : {settings.Provider}, {DecodingThreads.Resolve(settings.Threads)} fils");
             Console.WriteLine("Chargement du modèle...");
 
-            using var engine = ParakeetEngine.Load(modelPath, settings.Provider, settings.Threads);
+            using var engine = ParakeetEngine.Load(modelPath, settings.Provider, DecodingThreads.Resolve(settings.Threads));
 
             Console.WriteLine();
 

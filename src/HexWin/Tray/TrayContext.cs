@@ -99,7 +99,7 @@ internal sealed class TrayContext : ApplicationContext
         _engines = new EngineHost(
             modelPath,
             settings.Provider,
-            settings.Threads,
+            DecodingThreads.Resolve(settings.Threads),
             IdlePolicy.FromMinutes(settings.UnloadAfterMinutes),
             _log);
 
@@ -229,7 +229,7 @@ internal sealed class TrayContext : ApplicationContext
                 _log.Write("modèle vérifié, chargement différé à la première dictée");
             }
 
-            _log.Write($"prêt ({_settings.Provider}, {_settings.Threads} fils)");
+            _log.Write($"prêt ({_settings.Provider}, {DecodingThreads.Resolve(_settings.Threads)} fils)");
             _coordinator.MarkReady();
         }
         catch (Exception ex) when (ex is FileNotFoundException or InvalidOperationException or DllNotFoundException)

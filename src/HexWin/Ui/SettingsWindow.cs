@@ -256,7 +256,9 @@ internal sealed class SettingsWindow : Form
         _modelRow = new SettingRow(_theme, _text.ModelTitle, DescribeModel(), browse);
         browse.AccessibleName = _text.BrowseModelName;
 
-        _threads = new LabeledSlider(_theme, 1, AppSettings.MaxThreads, 1, _edited.Threads, value => SettingText.Threads(_text, value));
+        int automaticThreads = DecodingThreads.Resolve(0);
+        _threads = new LabeledSlider(
+            _theme, 0, AppSettings.MaxThreads, 1, _edited.Threads, value => SettingText.Threads(_text, value, automaticThreads));
 
         _unloadAfter = new LabeledSlider(
             _theme, 0, AppSettings.MaxUnloadAfterMinutes, 5, _edited.UnloadAfterMinutes, value => SettingText.IdleMinutes(_text, value));

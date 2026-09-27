@@ -145,10 +145,17 @@ public class SettingTextTests
     [Fact]
     public void One_thread_is_singular()
     {
-        Assert.Equal("1 fil", SettingText.Threads(Fr, 1));
-        Assert.Equal("4 fils", SettingText.Threads(Fr, 4));
-        Assert.Equal("1 thread", SettingText.Threads(En, 1));
-        Assert.Equal("4 threads", SettingText.Threads(En, 4));
+        Assert.Equal("1 fil", SettingText.Threads(Fr, 1, 6));
+        Assert.Equal("4 fils", SettingText.Threads(Fr, 4, 6));
+        Assert.Equal("1 thread", SettingText.Threads(En, 1, 6));
+        Assert.Equal("4 threads", SettingText.Threads(En, 4, 6));
+    }
+
+    [Fact]
+    public void Zero_threads_shows_the_automatic_count()
+    {
+        Assert.Equal("Auto (6 fils)", SettingText.Threads(Fr, 0, 6));
+        Assert.Equal("Auto (1 thread)", SettingText.Threads(En, 0, 1));
     }
 
     [Fact]

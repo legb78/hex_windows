@@ -95,14 +95,14 @@ public class AppSettingsTests
     // --- Threads --------------------------------------------------------------
 
     [Theory]
-    [InlineData(-4, 1)]
-    [InlineData(0, 1)]
+    [InlineData(-4, 0)]
+    [InlineData(0, 0)]
     [InlineData(4, 4)]
     [InlineData(1_000, 32)]
     public void The_thread_count_is_brought_back_within_bounds(int written, int expected)
     {
-        // Zero threads would stall decoding; a thousand would saturate the
-        // machine while speeding nothing up, the model being small.
+        // Below zero means nothing, zero leaving the count to the machine; a
+        // thousand would saturate it while speeding nothing up.
         AppSettings settings = AppSettings.Parse($$"""{"threads": {{written}}}""");
 
         Assert.Equal(expected, settings.Threads);
